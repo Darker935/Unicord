@@ -465,6 +465,12 @@
     <Compile Include="Models\User\RoleViewModel.cs" />
     <Compile Include="Models\User\UserViewModel.cs" />
     <Compile Include="Models\ViewModelBase.cs" />
+    <Compile Include="Voice\DaveNative.cs" />
+    <Compile Include="Voice\VoiceAesGcm.cs" />
+    <Content Include="Voice\native\unicord_dave.dll">
+      <Link>unicord_dave.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Compile Include="Models\Voice\Transport\VoiceDispatch.cs" />
     <Compile Include="Models\Voice\Transport\VoiceStateUpdatePayload.cs" />
     <Compile Include="Models\Voice\VoiceConnectionModel.cs" />
