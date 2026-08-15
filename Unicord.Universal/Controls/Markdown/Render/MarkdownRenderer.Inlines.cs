@@ -28,6 +28,11 @@ namespace Unicord.Universal.Controls.Markdown.Render
     public partial class MarkdownRenderer
     {
 
+        // every unicode sequence Discord itself treats as one emoji symbol, indexed for a
+        // longest-first scan of ordinary text
+        private static HashSet<char> _emojiStarts;
+        private static int _emojiLongest;
+
         /// <summary>
         /// Renders emoji element.
         /// </summary>
@@ -40,15 +45,115 @@ namespace Unicord.Universal.Controls.Markdown.Render
                 throw new RenderContextIncorrectException();
             }
 
-            var inlineCollection = localContext.InlineCollection;
+            localContext.InlineCollection.Add(CreateEmojiInline(new EmojiViewModel(element.Text)));
+        }
 
-            var emoji = new Run
+        /// <summary>
+        /// Builds the inline every emoji uses, whatever its origin: an <see cref="EmojiControl"/>
+        /// box the size of the artwork a glyph of this font draws, dropped by as much as that
+        /// artwork hangs below the baseline.
+        ///
+        /// A unicode emoji and a custom one used to be laid out by two different mechanisms - a
+        /// text <see cref="Run"/> and an <see cref="InlineUIContainer"/> holding an image - and no
+        /// amount of matching font metrics made them agree, because the text engine and the
+        /// inline-container rule place their contents differently. One box, one rule, both kinds.
+        /// </summary>
+        private InlineUIContainer CreateEmojiInline(EmojiViewModel emoji, string tooltip = null)
+        {
+            var control = new EmojiControl()
             {
+                Emoji = emoji,
+                Size = Math.Round(EmojiSize > 0 ? EmojiSize : FontSize),
                 FontFamily = EmojiFontFamily ?? DefaultEmojiFont,
-                Text = element.Text
+                // An InlineUIContainer puts its child's bottom edge on the baseline, which leaves an
+                // emoji floating above the text it sits in. The official client's rule is
+                // vertical-align: bottom - bottom edge on the bottom of the line - so the box drops
+                // by the message font's descent, which Segoe UI states as 514/2048 em.
+                //
+                // A RenderTransform and not a Margin, because a margin is layout and layout is what
+                // the container has already used to place the child. RenderCodeRun below does the
+                // same thing for the same reason.
+                RenderTransform = new TranslateTransform() { Y = Math.Round(EmojiControl.LineDescent * FontSize) }
             };
 
-            inlineCollection.Add(emoji);
+            if (tooltip != null)
+                ToolTipService.SetToolTip(control, tooltip);
+
+            return new InlineUIContainer() { Child = control };
+        }
+
+        /// <summary>
+        /// Splits a stretch of text into its emoji and non-emoji parts.
+        ///
+        /// Literal emoji arrive as ordinary text: <see cref="EmojiInline"/> only ever fires on a
+        /// <c>:shortcode:</c>, and Discord stores what was actually typed, so a message practically
+        /// never carries one. Picking them out here is what lets every emoji reach the one renderer
+        /// - without it a unicode emoji stays a glyph the text engine draws and can never line up
+        /// with the image beside it.
+        ///
+        /// Matched longest-first against the table Discord itself uses, so skin tones, keycaps,
+        /// flags and ZWJ sequences come out as the single symbols they draw as.
+        /// </summary>
+        private static List<(bool IsEmoji, string Text)> SplitEmoji(string text)
+        {
+            if (_emojiStarts == null)
+            {
+                var starts = new HashSet<char>();
+                var longest = 0;
+
+                foreach (var sequence in DiscordEmoji.DiscordNameLookup.Keys)
+                {
+                    if (string.IsNullOrEmpty(sequence))
+                        continue;
+
+                    starts.Add(sequence[0]);
+                    if (sequence.Length > longest)
+                        longest = sequence.Length;
+                }
+
+                _emojiLongest = longest;
+                _emojiStarts = starts;
+            }
+
+            var segments = new List<(bool, string)>();
+            var plain = 0;
+
+            for (var i = 0; i < text.Length;)
+            {
+                if (!_emojiStarts.Contains(text[i]))
+                {
+                    i++;
+                    continue;
+                }
+
+                var length = 0;
+                for (var candidate = Math.Min(_emojiLongest, text.Length - i); candidate > 0; candidate--)
+                {
+                    if (DiscordEmoji.DiscordNameLookup.ContainsKey(text.Substring(i, candidate)))
+                    {
+                        length = candidate;
+                        break;
+                    }
+                }
+
+                if (length == 0)
+                {
+                    i++;
+                    continue;
+                }
+
+                if (i > plain)
+                    segments.Add((false, text.Substring(plain, i - plain)));
+
+                segments.Add((true, text.Substring(i, length)));
+                i += length;
+                plain = i;
+            }
+
+            if (plain < text.Length)
+                segments.Add((false, text.Substring(plain)));
+
+            return segments;
         }
 
         /// <summary>
@@ -58,7 +163,27 @@ namespace Unicord.Universal.Controls.Markdown.Render
         /// <param name="context"> Persistent state. </param>
         protected override void RenderTextRun(TextRunInline element, IRenderContext context)
         {
-            InternalRenderTextRun(element, context);
+            if (context is not InlineRenderContext localContext)
+            {
+                throw new RenderContextIncorrectException();
+            }
+
+            var text = CollapseWhitespace(context, element.Text);
+
+            // a Hyperlink's inlines only take Runs, so link text keeps plain glyphs
+            if (localContext.WithinHyperlink || localContext.Parent is Hyperlink)
+            {
+                localContext.InlineCollection.Add(new Run { Text = text });
+                return;
+            }
+
+            foreach (var segment in SplitEmoji(text))
+            {
+                if (segment.IsEmoji)
+                    localContext.InlineCollection.Add(CreateEmojiInline(new EmojiViewModel(segment.Text)));
+                else
+                    localContext.InlineCollection.Add(new Run { Text = segment.Text });
+            }
         }
 
         private Run InternalRenderTextRun(TextRunInline element, IRenderContext context)
@@ -699,28 +824,13 @@ namespace Unicord.Universal.Controls.Markdown.Render
                 }
                 else
                 {
-                    var border = RootElement.FindParent<Border>();
-                    var uri = $"https://cdn.discordapp.com/emojis/{element.Id}?size=128";
-                    var ui = new InlineUIContainer() { FontSize = IsHuge ? 42 : 24 };
-                    var size = IsHuge ? 48 : 24;
-                    var image = new EmojiControl()
-                    {
-                        Emoji = new EmojiViewModel(element.Id, element.Text, element.IsAnimated),
-                        Size = size,
-                        MaxWidth = size * 3,
-                        Margin = IsHuge ? default : new Thickness(0, 0, 0, -8)
-                    };
+                    // Requested from the CDN well above the drawn size, so display scaling has
+                    // pixels to work with instead of upscaling a small source.
+                    var requestSize = EmojiSize > 32 ? 256 : 128;
+                    var emoji = new EmojiViewModel(element.Id, element.Text, element.IsAnimated, requestSize);
 
-                    ToolTipService.SetToolTip(image, element.Text);
-                    ui.Child = image;
-
-                    RootElement.Margin = new Thickness(0, 0, 0, 4);
-                    localContext.InlineCollection.Add(ui);
-
-                    //if (!IsHuge && RootElement.RenderTransform is not TranslateTransform tt)
-                    //{
-                    //    RootElement.Margin = new Thickness(0, -8, 0, 0);
-                    //}
+                    // exactly the same box a unicode emoji gets
+                    localContext.InlineCollection.Add(CreateEmojiInline(emoji, element.Text));
                 }
             }
         }

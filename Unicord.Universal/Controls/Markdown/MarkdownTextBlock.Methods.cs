@@ -137,7 +137,12 @@ namespace Unicord.Universal.Controls
                     renderer.BorderThickness = BorderThickness;
                     renderer.CharacterSpacing = CharacterSpacing;
                     renderer.FontFamily = FontFamily;
-                    renderer.FontSize = renderer.IsHuge && AllowHugeEmoji ? 42 : FontSize;
+                    renderer.FontSize = FontSize;
+                    // only the emoji grow. Scaling the whole block grew its spaces too, which is
+                    // what put those wide gaps between huge emoji.
+                    renderer.EmojiSize = renderer.IsHuge && AllowHugeEmoji
+                        ? 42
+                        : FontSize * MarkdownRenderer.InlineEmojiScale;
                     renderer.FontStretch = FontStretch;
                     renderer.FontStyle = FontStyle;
                     renderer.FontWeight = FontWeight;

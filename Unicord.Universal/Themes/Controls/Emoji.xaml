@@ -5,11 +5,17 @@
     
     <Style TargetType="local:EmojiControl">
         <Setter Property="Size" Value="32"/>
+        <!-- the glyph is measured against this font's metrics, so it must be the font it is drawn in -->
+        <Setter Property="FontFamily" Value="Segoe UI Emoji"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="local:EmojiControl">
                     <Border>
-                        <Grid Height="{TemplateBinding Size}" DataContext="{TemplateBinding Emoji}">
+                        <!-- square box, like the official client: art is scaled uniformly inside it,
+                             so emoji of differing aspect ratios still line up with each other -->
+                        <Grid Width="{TemplateBinding Size}"
+                              Height="{TemplateBinding Size}"
+                              DataContext="{TemplateBinding Emoji}">
                             <ToolTipService.ToolTip>
                                 <StackPanel>
                                     <Image Visibility="{Binding Url, Converter={StaticResource BoolVisibilityConverter}}" 
@@ -32,9 +38,12 @@
                                 </StackPanel>
                             </ToolTipService.ToolTip>
                             
-                            <Image x:Name="EmoteImage" 
-                                   Visibility="{Binding Url, Converter={StaticResource BoolVisibilityConverter}}" 
-                                   MaxHeight="{TemplateBinding Size}">
+                            <Image x:Name="EmoteImage"
+                                   Visibility="{Binding Url, Converter={StaticResource BoolVisibilityConverter}}"
+                                   MaxHeight="{TemplateBinding Size}"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Stretch="Uniform">
                                 <Image.Source>
                                     <BitmapImage UriSource="{Binding Url}" 
                                                  AutoPlay="{TemplateBinding Animate}"
@@ -43,13 +52,26 @@
                                 </Image.Source>
                             </Image>
 
-                            <Viewbox MaxWidth="{TemplateBinding Size}" 
-                                     MaxHeight="{TemplateBinding Size}"
-                                     Visibility="{Binding Unicode, Converter={StaticResource BoolVisibilityConverter}}"
-                                     Stretch="Uniform">
-                                <TextBlock x:Name="EmojiText" 
-                                           Text="{Binding Unicode}" />
-                            </Viewbox>
+                            <!-- The glyph lives in a Canvas, and that is the whole trick.
+
+                                 A glyph's line box is larger than its artwork in both directions -
+                                 wider by its side bearings, taller by its leading - so it is always
+                                 larger than this square. Any panel with a fixed size clamps the
+                                 TextBlock's arranged rectangle to the square, and a TextBlock draws
+                                 its text inside that rectangle and clips the rest, so part of the
+                                 artwork was destroyed at draw time whatever offset it was given.
+                                 A Canvas measures its children unconstrained and does not clip.
+
+                                 (The old Viewbox avoided the clip by scaling instead, which is why
+                                 it never cut anything and why it drew the artwork at 79% instead.)
+
+                                 The control positions it, by the bearings themselves. -->
+                            <Canvas>
+                                <TextBlock x:Name="PART_Glyph"
+                                           Text="{Binding Unicode}"
+                                           Visibility="{Binding Unicode, Converter={StaticResource BoolVisibilityConverter}}"
+                                           FontFamily="{TemplateBinding FontFamily}" />
+                            </Canvas>
                         </Grid>
                     </Border>
                 </ControlTemplate>

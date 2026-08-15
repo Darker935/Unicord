@@ -237,5 +237,19 @@ namespace Unicord.Universal.Controls.Markdown.Render
 
         public ColourBrushConverter ColourBrushConverter { get; set; }
         public bool IsHuge { get; internal set; }
+
+        /// <summary>
+        /// The official client draws an inline emoji at 1.375 times the text size. Emoji are not
+        /// drawn at the text size, and they never were: a glyph's artwork is wider than an em.
+        /// </summary>
+        public const double InlineEmojiScale = 1.375;
+
+        /// <summary>
+        /// The side of the square emoji are drawn into, which is not derived from
+        /// <see cref="FontSize"/> at render time: a message of nothing but emoji draws them huge
+        /// while its spaces stay ordinary, the same as the official client. Falls back to
+        /// <see cref="FontSize"/> when unset.
+        /// </summary>
+        public double EmojiSize { get; set; }
     }
 }
