@@ -13,6 +13,8 @@
     xmlns:messages="using:Unicord.Universal.Controls.Messages"
     xmlns:converters="using:Unicord.Universal.Converters"
     xmlns:voice="using:Unicord.Universal.Controls.Voice"
+    xmlns:users="using:Unicord.Universal.Controls.Users"
+    xmlns:presence="using:Unicord.Universal.Controls.Presence"
     xmlns:media="using:Microsoft.Toolkit.Uwp.UI.Media"
     xmlns:ui="using:Microsoft.Toolkit.Uwp.UI" 
     xmlns:messagesVMs="using:Unicord.Universal.Models.Messages"
@@ -91,7 +93,7 @@
                       Margin="0,32,0,0"
                       Background="{ThemeResource DiscordPage_PrimarySidebar_BackgroundBrush}">
                     <ScrollViewer IsVerticalScrollChainingEnabled="True">
-                        <StackPanel Padding="0,0,0,68">
+                        <StackPanel x:Name="GuildRailPanel" Padding="0,0,0,68">
                             <ListViewItem x:Name="CloseItem"
                                           MinWidth="0"
                                           Padding="0"
@@ -205,12 +207,7 @@
                 <Grid x:Name="sidebarSecondaryGrid"
                       Style="{StaticResource DiscordPage_SidebarSecondaryStyle}"
                       Grid.Column="1">
-                    <Grid Margin="{StaticResource DiscordPage_SecondaryGridMargin}">
-                        <Grid.RowDefinitions>
-                            <RowDefinition Height="*" />
-                            <RowDefinition Height="auto" />
-                        </Grid.RowDefinitions>
-
+                    <Grid x:Name="SidebarContentGrid" Margin="{StaticResource DiscordPage_SecondaryGridMargin}" Padding="0,0,0,68">
                         <Grid Background="{ThemeResource DiscordPage_SecondaryGrid_Background}"
                               BorderBrush="{ThemeResource DiscordPage_SecondaryGrid_BorderBrush}"
                               BorderThickness="{ThemeResource DiscordPage_SecondaryGrid_BorderThickness}"
@@ -218,59 +215,95 @@
                               Margin="{ThemeResource DiscordPage_SecondaryGrid_SplitMargin}">
                             <Frame x:Name="leftSidebarFrame"/>
                         </Grid>
-
-                        <Grid Grid.Row="1"
-                              Margin="{ThemeResource DiscordPage_SecondaryGrid_SplitMargin}"
-                              Background="{ThemeResource DiscordPage_SecondaryGrid_Background}"
-                              BorderBrush="{ThemeResource DiscordPage_SecondaryGrid_BorderBrush}"
-                              BorderThickness="{ThemeResource DiscordPage_SecondaryGrid_BorderThickness}"
-                              CornerRadius="{ThemeResource DiscordPage_SecondaryGrid_CornerRadius}"
-                              Visibility="{Binding VoiceModel, Converter={StaticResource HideOnNullConverter}, FallbackValue=Collapsed}">
-                            <voice:VoiceConnectionControl ConnectionModel="{Binding VoiceModel}"/>
-                        </Grid>
                     </Grid>
                 </Grid>
 
-                <!-- Floating user panel pill spanning both columns -->
-                <Grid Grid.ColumnSpan="2"
+                <!-- Floating user panel pill spanning both columns. The call sits inside the same
+                     card, above the user row, so the two read as one surface. -->
+                <Grid x:Name="UserPanel"
+                      Grid.ColumnSpan="2"
                       VerticalAlignment="Bottom"
                       Margin="8,8,12,8"
+                      SizeChanged="UserPanel_SizeChanged"
                       Background="{ThemeResource DiscordPage_UserPill_Background}"
                       BorderBrush="{ThemeResource DiscordPage_SecondaryGrid_BorderBrush}"
                       BorderThickness="{ThemeResource DiscordPage_SecondaryGrid_BorderThickness}"
-                      CornerRadius="{ThemeResource DiscordPage_UserPill_CornerRadius}"
-                      Padding="8,6"
-                      Height="52">
+                      CornerRadius="{ThemeResource DiscordPage_UserPill_CornerRadius}">
                     <w1903:Grid.Shadow>
                         <w1903:ThemeShadow />
                     </w1903:Grid.Shadow>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid x:Name="VoicePanelHost"
+                          Visibility="{Binding VoiceModel, Converter={StaticResource HideOnNullConverter}, FallbackValue=Collapsed}">
+                        <voice:VoiceConnectionControl ConnectionModel="{Binding VoiceModel}"/>
+
+                        <Border Height="1"
+                                Margin="12,0"
+                                VerticalAlignment="Bottom"
+                                Background="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+                    </Grid>
+
+                <Grid Grid.Row="1" Padding="8,6" Height="52">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
-                    <lib:PersonPicture Width="32" Height="32" ProfilePicture="{Binding CurrentUser.AvatarUrl}" DisplayName="{Binding CurrentUser.DisplayName}" />
+                    <users:AvatarControl Width="32"
+                                         Height="32"
+                                         Style="{ThemeResource SmallAvatarWithPresenceStyle}"
+                                         Source="{Binding CurrentUserModel.AvatarUri}"
+                                         Presence="{Binding CurrentUserModel.Presence}" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="8,0">
                         <TextBlock Text="{Binding CurrentUser.DisplayName}" FontSize="13" FontWeight="SemiBold" TextTrimming="CharacterEllipsis"/>
-                        <TextBlock Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}" 
-                                   FontSize="11" 
-                                   FontFamily="{ThemeResource DiscordPage_UserPill_SecondaryFontFamily}" 
-                                   Margin="0,-2,0,0" 
+
+                        <!-- activity or custom status when there is one, otherwise the handle -->
+                        <presence:InlinePresenceControl Margin="0,-2,0,0"
+                                                        Presence="{Binding CurrentUserModel.Presence}" />
+
+                        <TextBlock Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                                   FontSize="11"
+                                   FontFamily="{ThemeResource DiscordPage_UserPill_SecondaryFontFamily}"
+                                   Margin="0,-2,0,0"
                                    Text="{Binding CurrentUser.Username}"
+                                   Visibility="{Binding CurrentUserModel.Presence.HasActivity, Converter={StaticResource InverseBoolVisibilityConverter}}"
                                    TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
 
-                    <Button x:Name="SettingsButton"
-                            Grid.Column="2"
-                            Style="{StaticResource IconButtonStyle}"
-                            Width="32"
-                            Height="32"
-                            Padding="0"
-                            Content="&#xE713;"
-                            FontSize="16"
-                            Command="{StaticResource SettingsCommand}"/>
+                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                        <!-- always on the pill, but there is no global mute state outside a call,
+                             so they are disabled until one exists -->
+                        <ToggleButton Width="32" Height="32" Padding="0" Margin="0,0,4,0"
+                                      Style="{ThemeResource StretchyIconToggleButtonStyle}"
+                                      FontSize="16" Content="&#xEC54;"
+                                      IsEnabled="{Binding VoiceModel, Converter={StaticResource BoolConverter}}"
+                                      IsChecked="{Binding VoiceModel.Muted, Mode=OneWay}"
+                                      Click="MuteVoice_Click"
+                                      ToolTipService.ToolTip="Mute"/>
+                        <ToggleButton Width="32" Height="32" Padding="0" Margin="0,0,4,0"
+                                      Style="{ThemeResource StretchyIconToggleButtonStyle}"
+                                      FontSize="16" Content="&#xE74F;"
+                                      IsEnabled="{Binding VoiceModel, Converter={StaticResource BoolConverter}}"
+                                      IsChecked="{Binding VoiceModel.Deafened, Mode=OneWay}"
+                                      Click="DeafenVoice_Click"
+                                      ToolTipService.ToolTip="Deafen"/>
+                        <!-- disconnect lives on the voice panel above, not here -->
+                        <Button x:Name="SettingsButton"
+                                Style="{StaticResource IconButtonStyle}"
+                                Width="32"
+                                Height="32"
+                                Padding="0"
+                                Content="&#xE713;"
+                                FontSize="16"
+                                Command="{StaticResource SettingsCommand}"/>
+                    </StackPanel>
+                    </Grid>
                 </Grid>
             </Grid>
 

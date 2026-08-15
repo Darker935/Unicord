@@ -104,6 +104,19 @@ namespace Unicord.Universal.Models.User
         public string AvatarUrl
             => (Member as DiscordUser)?.GetAvatarUrl(64) ?? User.GetAvatarUrl(64);
 
+        /// <summary>
+        /// The same avatar as a <see cref="Uri"/>. AvatarControl.Source is typed Uri, and binding a
+        /// string to it fails silently, leaving a blank avatar.
+        /// </summary>
+        public Uri AvatarUri
+        {
+            get
+            {
+                var url = AvatarUrl;
+                return string.IsNullOrEmpty(url) ? null : new Uri(url);
+            }
+        }
+
         public string Mention
             => User.Mention;
 
@@ -186,7 +199,12 @@ namespace Unicord.Universal.Models.User
             InvokePropertyChanged(nameof(DisplayName));
 
             if (e.UserAfter.AvatarHash != e.UserBefore.AvatarHash)
+            {
                 InvokePropertyChanged(nameof(AvatarUrl));
+                // AvatarUri is what AvatarControl binds to, and it is computed from AvatarUrl rather
+                // than stored, so it has to be raised too or the avatar never repaints
+                InvokePropertyChanged(nameof(AvatarUri));
+            }
         }
 
         private void OnPresenceUpdate(PresenceUpdateEventArgs e)
