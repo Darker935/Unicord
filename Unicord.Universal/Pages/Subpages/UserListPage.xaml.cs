@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using DSharpPlus.Entities;
 using Unicord.Universal.Models.Channels;
@@ -45,7 +46,8 @@ namespace Unicord.Universal.Pages.Subpages
                                .OrderBy(g => g.DisplayName)
                                .Select(s => new UserViewModel(s, channel.Guild.Id))
                                .GroupBy(g => g.Member.Roles.OrderByDescending(r => r.Position).FirstOrDefault(r => r.IsHoisted))
-                               .OrderByDescending(g => g.Key?.Position);
+                               .OrderByDescending(g => g.Key?.Position)
+                               .Select(g => new UserListGroup(g.Key, g));
                         }
 
                         progress.IsActive = false;
@@ -72,6 +74,22 @@ namespace Unicord.Universal.Pages.Subpages
         private void CloseButton_Click(object sender, Windows.UI.Xaml.RoutedEventArgs e)
         {
             SplitPaneService.GetForCurrentView().ToggleRightPane<UserListPage>(_channel);
+        }
+
+        /// <summary>
+        /// A member list group. Derives from <see cref="List{T}"/> so grouped
+        /// <see cref="Windows.UI.Xaml.Data.CollectionViewSource"/> keeps working without an
+        /// ItemsPath, while exposing a bindable Count for the group header.
+        /// </summary>
+        private class UserListGroup : List<UserViewModel>
+        {
+            public UserListGroup(DiscordRole key, IEnumerable<UserViewModel> members)
+                : base(members)
+            {
+                Key = key;
+            }
+
+            public DiscordRole Key { get; }
         }
     }
 }

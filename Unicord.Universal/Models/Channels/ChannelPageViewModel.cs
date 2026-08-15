@@ -652,9 +652,12 @@ namespace Unicord.Universal.Models
                     }
                     else
                     {
+                        // replied_user is serialised from MentionOnReply alone; RepliedUserMention
+                        // in the allowed-mentions list is a no-op on this path, so the toggle has
+                        // to be passed to WithReply or the reply never pings.
                         await Channel.SendMessageAsync(new DiscordMessageBuilder()
                             .WithContent(txt)
-                            .WithReply(replyTo?.Id)
+                            .WithReply(replyTo?.Id, replyPing && replyTo != null)
                             .WithAllowedMentions(mentions)).ConfigureAwait(false);
                     }
 

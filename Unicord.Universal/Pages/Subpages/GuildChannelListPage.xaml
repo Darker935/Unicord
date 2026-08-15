@@ -33,7 +33,7 @@
             CanDragItems="{Binding CanEdit}"
             CanReorderItems="{Binding CanEdit}"
             AllowDrop="{Binding CanEdit}"
-            Padding="0,0,0,68"
+            Padding="0,0,0,4"
             SelectionChanged="channelsList_SelectionChanged"
             SingleSelectionFollowsFocus="False">
             <ListView.Header>

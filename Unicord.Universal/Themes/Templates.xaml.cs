@@ -2,9 +2,11 @@
 using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Controls;
 using MUXC = Microsoft.UI.Xaml.Controls;
+using Unicord.Universal.Models.Channels;
 using Unicord.Universal.Models.Guild;
 using System.ComponentModel;
 using Unicord.Universal.Extensions;
+using Windows.UI.Xaml.Input;
 
 namespace Unicord.Universal.Resources
 {
@@ -13,6 +15,16 @@ namespace Unicord.Universal.Resources
         public Templates()
         {
             InitializeComponent();
+        }
+
+        private void OnCategoryHeaderTapped(object sender, TappedRoutedEventArgs e)
+        {
+            if (sender is FrameworkElement { DataContext: ChannelListViewModel category })
+                category.IsCollapsed = !category.IsCollapsed;
+
+            // the channel list restores its selection for non-text rows, so a category tap would
+            // otherwise fall through to the ListView and fight the collapse
+            e.Handled = true;
         }
 
         private void OnGuildsListFolderItemLoaded(object sender, RoutedEventArgs e)

@@ -133,7 +133,7 @@
               VerticalAlignment="Stretch" 
               Background="Transparent" 
               Padding="0,4">
-            <Grid Margin="4,0,16,0" Opacity="{x:Bind MutedOpacity}">
+            <Grid Margin="4,0,16,0" Opacity="{x:Bind ChannelListOpacity, Mode=OneWay}">
                 <ToolTipService.ToolTip>
                     <ToolTip IsEnabled="{x:Bind HasTopic}">
                         <controls:MarkdownTextBlock Text="{x:Bind Topic}" FontSize="{ThemeResource ToolTipContentThemeFontSize}" Channel="{x:Bind Channel}" />
@@ -165,9 +165,9 @@
                            TextWrapping="NoWrap" 
                            Margin="0,0,4,0" />
 
-                <lib:InfoBadge x:Name="unreadIndicator" 
-                               x:Load="{x:Bind ShouldShowNotificaitonIndicator, Mode=OneWay}"
-                               Grid.Column="2" 
+                <lib:InfoBadge x:Name="unreadIndicator"
+                               x:Load="{x:Bind ShouldShowMentionBadge, Mode=OneWay}"
+                               Grid.Column="2"
                                HorizontalAlignment="Center" 
                                VerticalAlignment="Center"
                                MinWidth="8"
@@ -183,7 +183,7 @@
               VerticalAlignment="Stretch" 
               Background="Transparent" 
               Padding="0,8">
-            <Grid Margin="0,0,16,0" Opacity="{x:Bind MutedOpacity}">
+            <Grid Margin="0,0,16,0" Opacity="{x:Bind ChannelListOpacity, Mode=OneWay}">
                 <ToolTipService.ToolTip>
                     <ToolTip IsEnabled="{x:Bind HasTopic}">
                         <controls:MarkdownTextBlock Text="{x:Bind Topic}" FontSize="{ThemeResource ToolTipContentThemeFontSize}" Channel="{x:Bind Channel}" />
@@ -198,15 +198,15 @@
 
                 <TextBlock x:Name="Icon"
                            FontSize="16"
-                           VerticalAlignment="Center" 
+                           VerticalAlignment="Center"
                            Margin="16,0,8,0"
                            FontFamily="{StaticResource FluentSystemIcons}" 
                            Text="{Binding Converter={StaticResource ChannelSymbolConverter}}"/>
 
                 <TextBlock Text="{x:Bind Name}" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" TextWrapping="NoWrap" Margin="0,0,4,0" />
 
-                <lib:InfoBadge x:Name="unreadIndicator" 
-                               x:Load="{x:Bind ShouldShowNotificaitonIndicator, Mode=OneWay}"
+                <lib:InfoBadge x:Name="unreadIndicator"
+                               x:Load="{x:Bind ShouldShowMentionBadge, Mode=OneWay}"
                                x:Phase="3"
                                Grid.Column="2" 
                                HorizontalAlignment="Center" 

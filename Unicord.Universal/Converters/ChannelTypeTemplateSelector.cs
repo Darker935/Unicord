@@ -25,6 +25,7 @@ namespace Unicord.Universal.Converters
                     case ChannelType.Unknown:
                         return TextChannelTemplate;
                     case ChannelType.Voice:
+                    case ChannelType.Stage:
                         return VoiceChannelTemplate ?? TextChannelTemplate;
                     case ChannelType.Private:
                         return DMChannelTemplate;

@@ -41,6 +41,9 @@ namespace Unicord.Universal.Models.Messaging
             client.RelationshipRemoved += OnRelationshipRemoved;
             client.PresenceUpdated += OnPresenceUpdated;
             client.ReadStateUpdated += OnReadStateUpdated;
+            client.VoiceStateUpdated += OnVoiceStateUpdated;
+            client.VoiceChannelStatusUpdated += OnVoiceChannelStatusUpdated;
+            client.VoiceChannelStartTimeUpdated += OnVoiceChannelStartTimeUpdated;
         }
         
         public static void Unregister(DiscordClient client)
@@ -73,6 +76,9 @@ namespace Unicord.Universal.Models.Messaging
             client.RelationshipRemoved -= OnRelationshipRemoved;
             client.PresenceUpdated -= OnPresenceUpdated;
             client.ReadStateUpdated -= OnReadStateUpdated;
+            client.VoiceStateUpdated -= OnVoiceStateUpdated;
+            client.VoiceChannelStatusUpdated -= OnVoiceChannelStatusUpdated;
+            client.VoiceChannelStartTimeUpdated -= OnVoiceChannelStartTimeUpdated;
         }
 
         private static Task OnUserUpdated(DiscordClient client, UserUpdateEventArgs e) 
@@ -166,6 +172,15 @@ namespace Unicord.Universal.Models.Messaging
             => Task.WhenAll(WeakReferenceMessenger.Default.Send(e));
 
         private static Task OnSocketClosed(DiscordClient sender, SocketCloseEventArgs e) 
+            => Task.WhenAll(WeakReferenceMessenger.Default.Send(e));
+
+        private static Task OnVoiceStateUpdated(DiscordClient client, VoiceStateUpdateEventArgs e)
+            => Task.WhenAll(WeakReferenceMessenger.Default.Send(e));
+
+        private static Task OnVoiceChannelStatusUpdated(DiscordClient client, VoiceChannelStatusUpdateEventArgs e)
+            => Task.WhenAll(WeakReferenceMessenger.Default.Send(e));
+
+        private static Task OnVoiceChannelStartTimeUpdated(DiscordClient client, VoiceChannelStartTimeUpdateEventArgs e)
             => Task.WhenAll(WeakReferenceMessenger.Default.Send(e));
     }
 }

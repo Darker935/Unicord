@@ -19,6 +19,7 @@
     xmlns:channelVMs="using:Unicord.Universal.Models.Channels"
     xmlns:guildVMs="using:Unicord.Universal.Models.Guild" 
     xmlns:userVMs="using:Unicord.Universal.Models.User"
+    xmlns:voiceVMs="using:Unicord.Universal.Models.Voice"
     x:DefaultBindMode="OneWay">
 
     <ResourceDictionary.MergedDictionaries>
@@ -200,18 +201,39 @@
         </Setter>
     </Style>
 
-    <DataTemplate x:Key="VoiceMemberListTemplate" x:DataType="entities:DiscordMember">
-        <Grid Margin="0,4">
+    <DataTemplate x:Key="VoiceMemberListTemplate" x:DataType="voiceVMs:VoiceMemberViewModel">
+        <Grid Margin="0,3,0,3" Opacity="{x:Bind MemberOpacity, Mode=OneWay}">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="auto"/>
+                <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <lib:PersonPicture Margin="0,0,8,0" Width="16" Height="16" DisplayName="{Binding DisplayName}">
-                <lib:PersonPicture.ProfilePicture>
-                    <BitmapImage UriSource="{Binding NonAnimatedAvatarUrl}" DecodePixelWidth="16" DecodePixelHeight="16" DecodePixelType="Logical" />
-                </lib:PersonPicture.ProfilePicture>
-            </lib:PersonPicture>
-            <TextBlock Grid.Column="1" Style="{ThemeResource CaptionTextBlockStyle}" Text="{Binding DisplayName}"/>
+            <Grid Margin="0,0,8,0" Width="22" Height="22">
+                <!-- AvatarControl rather than PersonPicture: PersonPicture paints initials behind
+                     the photo, and dimming the row for another client made them show through -->
+                <users:AvatarControl Width="20" Height="20" Source="{x:Bind AvatarUri}"/>
+
+                <Ellipse Width="22"
+                         Height="22"
+                         StrokeThickness="2"
+                         Stroke="{ThemeResource SpeakingRingBrush}"
+                         Visibility="{x:Bind IsSpeaking, Mode=OneWay, Converter={StaticResource BoolVisibilityConverter}}"/>
+            </Grid>
+            <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>
+            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center" Margin="4,0,4,0">
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE714;" FontSize="12" Margin="4,0,0,0"
+                          Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
+                          Visibility="{x:Bind IsStreaming, Converter={StaticResource BoolVisibilityConverter}}"/>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE960;" FontSize="12" Margin="4,0,0,0"
+                          Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
+                          Visibility="{x:Bind IsVideo, Converter={StaticResource BoolVisibilityConverter}}"/>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xEC54;" FontSize="12" Margin="4,0,0,0"
+                          Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
+                          Visibility="{x:Bind ShowMuted, Converter={StaticResource BoolVisibilityConverter}}"/>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE74F;" FontSize="12" Margin="4,0,0,0"
+                          Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
+                          Visibility="{x:Bind IsDeafened, Converter={StaticResource BoolVisibilityConverter}}"/>
+            </StackPanel>
         </Grid>
     </DataTemplate>
 
@@ -233,20 +255,89 @@
 
     <DataTemplate x:Key="ChannelListCategoryTemplate" x:DataType="channelVMs:ChannelListViewModel">
         <Border ContextFlyout="{StaticResource ChannelContextFlyout}"
-                VerticalAlignment="Stretch" 
-                Background="Transparent" 
-                Margin="10,8,8,2"
+                VerticalAlignment="Stretch"
+                Background="Transparent"
+                Margin="10,16,8,4"
+                Tapped="OnCategoryHeaderTapped"
                 Opacity="{x:Bind MutedOpacity}">
-            <TextBlock FontSize="12"
-                       Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
-                       FontWeight="SemiBold"
-                       Text="{x:Bind Name, Converter={StaticResource TitleCaseConverter}}" 
-                       TextWrapping="NoWrap" />
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                </Grid.ColumnDefinitions>
+
+                <TextBlock FontSize="10"
+                           Margin="0,0,4,0"
+                           VerticalAlignment="Center"
+                           Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                           FontFamily="{StaticResource SymbolThemeFontFamily}"
+                           Text="{x:Bind CategoryGlyph}" />
+
+                <TextBlock Grid.Column="1"
+                           FontSize="12"
+                           Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                           FontWeight="SemiBold"
+                           Text="{x:Bind Name}"
+                           TextWrapping="NoWrap" />
+            </Grid>
         </Border>
     </DataTemplate>
 
     <DataTemplate x:Key="ChannelListVoiceTemplate" x:DataType="channelVMs:ChannelListViewModel">
-        <channels:ChannelListControl Channel="{Binding}"/>
+        <Grid ContextFlyout="{StaticResource ChannelContextFlyout}"
+              VerticalAlignment="Stretch"
+              Background="Transparent"
+              Padding="0,8,0,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            <Grid Margin="0,0,16,0" Opacity="{x:Bind MutedOpacity}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto" MinWidth="16"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock FontSize="16"
+                           VerticalAlignment="Center"
+                           Margin="16,0,8,0"
+                           FontFamily="{StaticResource FluentSystemIcons}"
+                           Text="{Binding Converter={StaticResource ChannelSymbolConverter}}"/>
+
+                <StackPanel Grid.Column="1" VerticalAlignment="Center" Margin="0,0,4,0">
+                    <TextBlock Text="{x:Bind Name}"
+                               HorizontalAlignment="Stretch"
+                               TextWrapping="NoWrap" />
+
+                    <!-- the line members set on the call; arrives on the channel and through
+                         VOICE_CHANNEL_STATUS_UPDATE, never requested. Rendered as markdown because
+                         a status can carry custom emoji, which are <:name:id> in the raw string -->
+                    <controls:MarkdownTextBlock x:Name="VoiceChannelStatus"
+                                                x:Load="{x:Bind HasStatus, Mode=OneWay}"
+                                                Text="{x:Bind Status, Mode=OneWay}"
+                                                Channel="{x:Bind Channel}"
+                                                InlineOnly="True"
+                                                IsEnabled="False"
+                                                FontSize="11"
+                                                Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                                                TextWrapping="NoWrap" />
+                </StackPanel>
+
+                <TextBlock x:Name="CallDurationText"
+                           x:Load="{x:Bind HasCallDuration, Mode=OneWay}"
+                           Grid.Column="2"
+                           Text="{x:Bind CallDuration, Mode=OneWay}"
+                           FontSize="11"
+                           VerticalAlignment="Center"
+                           Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"/>
+            </Grid>
+            <ItemsControl Grid.Row="1"
+                          Margin="40,2,16,0"
+                          ItemsSource="{x:Bind VoiceMembers, Mode=OneWay}"
+                          ItemTemplate="{StaticResource VoiceMemberListTemplate}"
+                          Visibility="{x:Bind HasVoiceMembers, Mode=OneWay, Converter={StaticResource BoolVisibilityConverter}}"
+                          IsHitTestVisible="False"/>
+        </Grid>
     </DataTemplate>
 
     <DataTemplate x:Key="RoleTemplate" x:DataType="userVMs:RoleViewModel">
@@ -287,15 +378,28 @@
               ToolTipService.ToolTip="{x:Bind Name}"
               ToolTipService.Placement="Left"
               Loaded="OnGuildsListItemLoaded"
-              Height="55">
+              Height="50">
             <lib:PersonPicture x:Phase="1" Margin="0,4" Width="38" Height="38" DisplayName="{x:Bind Name}" ProfilePicture="{Binding IconUrl}"/>
-            <lib:InfoBadge x:Phase="2" VerticalAlignment="Top"
+
+            <!-- left edge unread marker; while the guild is open the item's own selection
+                 indicator sits here instead -->
+            <Rectangle Width="4"
+                       Height="8"
+                       RadiusX="2"
+                       RadiusY="2"
+                       HorizontalAlignment="Left"
+                       VerticalAlignment="Center"
+                       Fill="{ThemeResource ApplicationForegroundThemeBrush}"
+                       Visibility="{Binding ShowUnreadDot, Converter={StaticResource BoolVisibilityConverter}}"/>
+
+            <!-- mentions only; plain unread is the left-edge dot above -->
+            <lib:InfoBadge x:Phase="2" VerticalAlignment="Bottom"
                            HorizontalAlignment="Right"
-                           Margin="8,4"
+                           Margin="0,0,10,4"
                            MinWidth="8"
                            MinHeight="8"
                            Value="{x:Bind MentionCount}"
-                           Visibility="{Binding Unread, Converter={StaticResource BoolVisibilityConverter}}"/>
+                           Visibility="{Binding ShowMentionBadge, Converter={StaticResource BoolVisibilityConverter}}"/>
         </Grid>
         <!--</lib:TreeViewItem>-->
     </DataTemplate>
@@ -367,13 +471,13 @@
             </Grid>
 
             <lib:InfoBadge x:Name="UnreadIndicator"
-                           x:Load="{x:Bind Unread}" 
+                           x:Load="{x:Bind ShowMentionBadge}"
                            x:Phase="2"
                            Grid.ColumnSpan="2"
                            Grid.RowSpan="2"
-                           VerticalAlignment="Top"
+                           VerticalAlignment="Bottom"
                            HorizontalAlignment="Right"
-                           Margin="8,4"
+                           Margin="0,0,4,0"
                            MinWidth="8"
                            MinHeight="8"
                            Value="{x:Bind MentionCount}"/>
@@ -503,9 +607,9 @@
             </Grid.ColumnDefinitions>
 
             <users:AvatarControl Style="{StaticResource SmallAvatarWithPresenceStyle}"
-                                 Width="38"
-                                 Height="38"
-                                 Source="{Binding AvatarUrl}"
+                                 Width="32"
+                                 Height="32"
+                                 Source="{Binding AvatarUri}"
                                  Presence="{Binding Presence}"/>
             <Grid
                 Grid.Column="1"
