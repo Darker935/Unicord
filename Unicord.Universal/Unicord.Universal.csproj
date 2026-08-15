@@ -366,6 +366,7 @@
     <Compile Include="Converters\Messages\ComponentTemplateSelector.cs" />
     <Compile Include="Converters\MessageTemplateSelector.cs" />
     <Compile Include="Converters\PresenceConverters.cs" />
+    <Compile Include="Converters\VoicePingConverters.cs" />
     <Compile Include="Converters\ThumbnailImageConverter.cs" />
     <Compile Include="Converters\TitleCaseConverter.cs" />
     <Compile Include="Converters\TruncateConverter.cs" />
@@ -468,6 +469,19 @@
     <Compile Include="Models\Voice\Transport\VoiceDispatch.cs" />
     <Compile Include="Models\Voice\Transport\VoiceStateUpdatePayload.cs" />
     <Compile Include="Models\Voice\VoiceConnectionModel.cs" />
+    <Compile Include="Models\Voice\VoiceMemberViewModel.cs" />
+    <Compile Include="Models\Voice\VoiceSpeakingTracker.cs" />
+    <Compile Include="Voice\DaveNative.cs" />
+    <Compile Include="Voice\DiscordVoiceSession.cs" />
+    <Compile Include="Voice\VoiceAesGcm.cs" />
+    <Compile Include="Voice\VoiceAudioEngine.cs" />
+    <Compile Include="Voice\VoicePcmPool.cs" />
+    <Compile Include="Voice\VoiceQualityOptions.cs" />
+    <Compile Include="Voice\VoiceSpeakingEventArgs.cs" />
+    <Content Include="Voice\native\unicord_dave.dll">
+      <Link>unicord_dave.dll</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Compile Include="Pages\ChannelPage.xaml.cs">
       <DependentUpon>ChannelPage.xaml</DependentUpon>
     </Compile>

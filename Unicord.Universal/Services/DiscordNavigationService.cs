@@ -205,19 +205,36 @@ namespace Unicord.Universal.Services
             {
                 Analytics.TrackEvent("DiscordNavigationService_NavigateToVoiceChannel");
 
-                if (_discordPageModel.VoiceModel != null)
-                    await _discordPageModel.VoiceModel.DisconnectAsync();
+                var existing = _discordPageModel.VoiceModel;
 
-                try
+                // Clicking the channel we are already in, or still joining, is a no-op in
+                // official clients. Rebuilding the model here meant a second click tore down
+                // a half-finished join and started another, so two voice websockets raced
+                // one session and Discord closed one with 4006.
+                //
+                // A terminated session does not count: if the voice server ended the call, or
+                // another client disconnected us, the old model is dead and swallowing the
+                // click left no way back into the channel at all.
+                if (existing != null && existing.Channel?.Id == channel.Id && !existing.IsTerminated)
                 {
-                    var voice = new VoiceConnectionModel(channel);
-                    _discordPageModel.VoiceModel = voice;
-                    await voice.ConnectAsync();
+                    Logger.Log("Voice navigation ignored: already in this channel");
                 }
-                catch (Exception ex)
+                else
                 {
-                    Logger.LogError(ex);
-                    await UIUtilities.ShowErrorDialogAsync("Failed to connect to voice!", ex.Message);
+                    if (existing != null)
+                        await existing.DisconnectAsync();
+
+                    try
+                    {
+                        var voice = new VoiceConnectionModel(channel);
+                        _discordPageModel.VoiceModel = voice;
+                        await voice.ConnectAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.LogError(ex);
+                        await UIUtilities.ShowErrorDialogAsync("Failed to connect to voice!", ex.Message);
+                    }
                 }
             }
 
