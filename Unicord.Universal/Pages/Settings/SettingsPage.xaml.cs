@@ -41,6 +41,7 @@ namespace Unicord.Universal.Pages.Settings
                 [SettingsPageType.Media] = typeof(MediaSettingsPage),
                 [SettingsPageType.Voice] = typeof(VoiceSettingsPage),
                 [SettingsPageType.Security] = typeof(SecuritySettingsPage),
+                [SettingsPageType.Developer] = typeof(DebugSettingsPage),
                 [SettingsPageType.About] = typeof(AboutSettingsPage),
             };
 
@@ -55,6 +56,11 @@ namespace Unicord.Universal.Pages.Settings
         public SettingsPage()
         {
             InitializeComponent();
+
+            // Diagnostics are not useful to Store users and the traces are meaningless without a
+            // debugger, so the entry only exists in sideloaded builds.
+            DeveloperItem.Visibility = IsDebug ? Visibility.Visible : Visibility.Collapsed;
+
             SelectNavItem(SettingsPageType.Accounts);
 
             // Set initial display mode state

@@ -149,6 +149,12 @@
                     </lib:NavigationViewItem.Icon>
                 </lib:NavigationViewItem>
 
+                <lib:NavigationViewItem x:Name="DeveloperItem" Tag="Developer" Content="Developer">
+                    <lib:NavigationViewItem.Icon>
+                        <FontIcon Glyph="&#xEC7A;" FontFamily="{StaticResource SymbolThemeFontFamily}" />
+                    </lib:NavigationViewItem.Icon>
+                </lib:NavigationViewItem>
+
             </lib:NavigationView.MenuItems>
 
             <lib:NavigationView.FooterMenuItems>

@@ -13,6 +13,7 @@ namespace Unicord.Universal.Services
         Media,
         Voice,
         Security,
+        Developer,
         About
     }
 
