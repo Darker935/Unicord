@@ -68,6 +68,8 @@
     <Color x:Key="DangerColour">#FFDC3545</Color>
     <Color x:Key="DangerLight1Colour">#FFD45562</Color>
     <Color x:Key="DangerForegroundColor">#FFFFFFFF</Color>
+
+    <Color x:Key="WarningColour">#FFFFC107</Color>
     
     <!-- src: https://discordapp.com/branding -->
     <Color x:Key="DiscordBlurpleColour">#FF7289DA</Color>
@@ -83,5 +85,10 @@
 
     <SolidColorBrush x:Key="MentionBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.1"/>
     <SolidColorBrush x:Key="TransparentBrush" Color="Transparent"/>
+
+    <!-- voice signal indicator, keyed off UDP ping. See VoicePingConverters. -->
+    <SolidColorBrush x:Key="VoicePingGoodBrush" Color="{ThemeResource SuccessColour}"/>
+    <SolidColorBrush x:Key="VoicePingFairBrush" Color="{ThemeResource WarningColour}"/>
+    <SolidColorBrush x:Key="VoicePingPoorBrush" Color="{ThemeResource DangerColour}"/>
 
 </ResourceDictionary>
