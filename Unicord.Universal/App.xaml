@@ -62,6 +62,9 @@
 
                     <converters:DateTimeConverter x:Key="DateTimeConverter"/>
                     <converters:PresenceTextConverter x:Key="PresenceTextConverter"/>
+                    <converters:VoicePingArcOpacityConverter x:Key="VoicePingArcOpacityConverter"/>
+                    <converters:VoicePingBrushConverter x:Key="VoicePingBrushConverter"/>
+                    <converters:VoicePingConverter x:Key="VoicePingConverter"/>
                     <converters:HideOnNullConverter x:Key="HideOnNullConverter"/>
                     <converters:BoolOpacityConverter x:Key="BoolOpacityConverter"/>
                     <converters:BoolVisibilityConverter x:Key="BoolVisibilityConverter"/>
