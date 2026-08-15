@@ -76,6 +76,85 @@
             </settings:SettingsBlockControl.Icon>
             <ToggleSwitch Grid.Column="1" Style="{ThemeResource NoTextToggleSwitchStyle}" IsOn="{Binding EchoCancellation, Mode=TwoWay}" />
         </settings:SettingsBlockControl>
-        
+
+        <TextBlock Text="Audio Quality" Style="{ThemeResource BaseTextBlockStyle}" Margin="4,16" />
+
+        <settings:SettingsBlockControl Title="Audio mode"
+                                       Description="Voice matches the official client. Music keeps left and right separated for dual-channel inputs and transmits continuously.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE8D6;"/>
+            </settings:SettingsBlockControl.Icon>
+            <ComboBox SelectedIndex="{Binding AudioMode, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch"
+                      MinWidth="200">
+                <ComboBoxItem Content="Voice"/>
+                <ComboBoxItem Content="Music (stereo)"/>
+            </ComboBox>
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Minimum bitrate"
+                                       Description="Adaptive quality will not drop below this.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE9F5;"/>
+            </settings:SettingsBlockControl.Icon>
+            <Slider Value="{Binding MinBitrateKbps, Mode=TwoWay}"
+                    Minimum="{Binding MinSupportedKbps}"
+                    Maximum="{Binding MaxSupportedKbps}"
+                    StepFrequency="8"
+                    HorizontalAlignment="Stretch"
+                    MinWidth="200"/>
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Maximum bitrate"
+                                       Description="Ceiling in kbps. The channel's own bitrate is used as the starting target; Music mode starts at this ceiling.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE9F9;"/>
+            </settings:SettingsBlockControl.Icon>
+            <Slider Value="{Binding MaxBitrateKbps, Mode=TwoWay}"
+                    Minimum="{Binding MinSupportedKbps}"
+                    Maximum="{Binding MaxSupportedKbps}"
+                    StepFrequency="8"
+                    HorizontalAlignment="Stretch"
+                    MinWidth="200"/>
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Adapt to connection quality"
+                                       Description="Lower the bitrate when packet loss is detected, and raise it again when the connection recovers.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE968;"/>
+            </settings:SettingsBlockControl.Icon>
+            <ToggleSwitch Style="{ThemeResource NoTextToggleSwitchStyle}" IsOn="{Binding AdaptiveBitrate, Mode=TwoWay}" />
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Forward error correction"
+                                       Description="Carry a recovery copy of the previous packet so a single loss does not become a gap. Voice mode only.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xEA80;"/>
+            </settings:SettingsBlockControl.Icon>
+            <ToggleSwitch Style="{ThemeResource NoTextToggleSwitchStyle}" IsOn="{Binding ForwardErrorCorrection, Mode=TwoWay}" />
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Stereo"
+                                       Description="Auto lets Opus choose per frame. Prefer keeps stereo whenever the bitrate can carry it and gives it up if the connection degrades. Always keeps stereo at any bitrate. Music mode is always stereo regardless.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE7F6;"/>
+            </settings:SettingsBlockControl.Icon>
+            <ComboBox SelectedIndex="{Binding StereoMode, Mode=TwoWay}"
+                      HorizontalAlignment="Stretch"
+                      MinWidth="200">
+                <ComboBoxItem Content="Auto"/>
+                <ComboBoxItem Content="Prefer stereo"/>
+                <ComboBoxItem Content="Always stereo"/>
+            </ComboBox>
+        </settings:SettingsBlockControl>
+
+        <settings:SettingsBlockControl Title="Debug voice calls"
+                                       Description="Record detailed audio timing to the app log while in a call: pacing, jitter, render clock and stalls. Only needed when diagnosing a fault, and off by default because it costs CPU and makes the logs much larger.">
+            <settings:SettingsBlockControl.Icon>
+                <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE9D9;"/>
+            </settings:SettingsBlockControl.Icon>
+            <ToggleSwitch Style="{ThemeResource NoTextToggleSwitchStyle}" IsOn="{Binding DiagnosticLogging, Mode=TwoWay}" />
+        </settings:SettingsBlockControl>
+
     </StackPanel>
 </Page>

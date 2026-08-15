@@ -1,4 +1,4 @@
-﻿<UserControl
+<UserControl
     x:Name="self"
     x:Class="Unicord.Universal.Controls.Voice.VoiceConnectionControl"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
@@ -12,7 +12,8 @@
     d:DesignHeight="300"
     d:DesignWidth="220">
 
-    <Grid Margin="0,4,0,0">
+    <!-- mute, deafen and settings live on the user pill below; this panel owns the call itself -->
+    <Grid Margin="0,4,0,0" Padding="12,10,8,10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
@@ -22,43 +23,99 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
-            <!--<TextBlock ToolTipService.ToolTip="{x:Bind ConnectionModel.UdpPing, Mode=OneWay}" FontFamily="{StaticResource SymbolThemeFontFamily}" Margin="16,8,8,8" VerticalAlignment="Center" FontSize="16" Text="{x:Bind ConnectionModel.UdpPing, Converter={StaticResource VoicePingGlyphConverter}, Mode=OneWay}"/>-->
-            <TextBlock Margin="0,8,8,8" Grid.Column="1" Text="{x:Bind ConnectionModel.ConnectionStatus, Mode=OneWay}"/>
+
+            <!-- drawn rather than a symbol glyph: the arcs light up by latency band and tint with
+                 the same brush, which no single font glyph gives us -->
+            <Viewbox x:Name="SignalIcon"
+                     Width="18"
+                     Height="18"
+                     VerticalAlignment="Center"
+                     ToolTipService.ToolTip="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingConverter}, Mode=OneWay}">
+                <Grid Width="16" Height="16">
+                    <Path Data="M1.5,6 A 10.5 10.5 0 0 1 14.5,6"
+                          Stroke="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingBrushConverter}, Mode=OneWay}"
+                          Opacity="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingArcOpacityConverter}, ConverterParameter=3, Mode=OneWay}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"/>
+
+                    <Path Data="M4,9 A 6.5 6.5 0 0 1 12,9"
+                          Stroke="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingBrushConverter}, Mode=OneWay}"
+                          Opacity="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingArcOpacityConverter}, ConverterParameter=2, Mode=OneWay}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"/>
+
+                    <Path Data="M6.4,11.9 A 3 3 0 0 1 9.6,11.9"
+                          Stroke="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingBrushConverter}, Mode=OneWay}"
+                          Opacity="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingArcOpacityConverter}, ConverterParameter=1, Mode=OneWay}"
+                          StrokeThickness="1.6"
+                          StrokeStartLineCap="Round"
+                          StrokeEndLineCap="Round"/>
+
+                    <Ellipse Width="2.6"
+                             Height="2.6"
+                             Margin="0,0,0,1"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Bottom"
+                             Fill="{x:Bind ConnectionModel.Ping, Converter={StaticResource VoicePingBrushConverter}, Mode=OneWay}"/>
+                </Grid>
+            </Viewbox>
+
+            <StackPanel Grid.Column="1" Margin="10,0,8,0" VerticalAlignment="Center">
+                <TextBlock Text="{x:Bind ConnectionModel.ConnectionStatus, Mode=OneWay}"
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap"/>
+
+                <TextBlock Text="{x:Bind ConnectionModel.ConnectionLocation, Mode=OneWay}"
+                           FontSize="11"
+                           Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                           TextTrimming="CharacterEllipsis"
+                           TextWrapping="NoWrap"/>
+            </StackPanel>
+
+            <Button x:Name="disconnectButton"
+                    Grid.Column="2"
+                    Width="32"
+                    Height="32"
+                    Padding="0"
+                    FontSize="16"
+                    Content="&#xE778;"
+                    Foreground="{ThemeResource DangerBrush}"
+                    Style="{ThemeResource IconButtonStyle}"
+                    Click="DisconnectButton_Click"
+                    ToolTipService.ToolTip="Disconnect"/>
         </Grid>
-        <Grid Grid.Row="1">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition x:Name="RoutingColumn" Width="*"/>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-            <ToggleButton x:Name="muteToggleButton" Padding="0,8" Margin="0,0,2,0" Grid.Column="0" IsChecked="{x:Bind ConnectionModel.Muted}" Style="{ThemeResource StretchyIconToggleButtonStyle}" HorizontalAlignment="Stretch" Content="&#xEC54;"/>
-            <ToggleButton x:Name="deafenToggleButton" Padding="0,8" Margin="0,0,2,0" Grid.Column="1" IsChecked="{x:Bind ConnectionModel.Deafened}" Style="{ThemeResource StretchyIconToggleButtonStyle}" HorizontalAlignment="Stretch" Content="&#xE74F;"/>
-            <lib:DropDownButton x:Name="RoutingButton" Margin="0,0,2,0" Grid.Column="2" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" Style="{ThemeResource StretchyIconButtonStyle}"  Content="&#xE8EA;">
-                <lib:DropDownButton.Flyout>
-                    <MenuFlyout>
-                        <lib:RadioMenuFlyoutItem Text="Earpiece">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8EA;"/>
-                            </MenuFlyoutItem.Icon>
-                        </lib:RadioMenuFlyoutItem>
-                        <lib:RadioMenuFlyoutItem Text="Speakerphone">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE7F5;"/>
-                            </MenuFlyoutItem.Icon>
-                        </lib:RadioMenuFlyoutItem>
-                        <lib:RadioMenuFlyoutItem Text="Bluetooth">
-                            <MenuFlyoutItem.Icon>
-                                <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE702;"/>
-                            </MenuFlyoutItem.Icon>
-                        </lib:RadioMenuFlyoutItem>
-                    </MenuFlyout>
-                </lib:DropDownButton.Flyout>
-            </lib:DropDownButton>
-            <Button x:Name="disconnectButton" Padding="0,8" Margin="0,0,2,0" Grid.Column="3" Click="DisconnectButton_Click" Style="{ThemeResource StretchyIconButtonStyle}" HorizontalAlignment="Stretch" Content="&#xE778;"/>
-            <Button x:Name="voiceSettingsButton" Padding="0,8" Grid.Column="4" Click="VoiceSettingsButton_Click" Style="{ThemeResource StretchyIconButtonStyle}" HorizontalAlignment="Stretch" Content="&#xE713;"/>
-        </Grid>
+
+        <lib:DropDownButton x:Name="RoutingButton"
+                            Grid.Row="1"
+                            Margin="0,8,0,0"
+                            HorizontalAlignment="Stretch"
+                            Style="{ThemeResource StretchyIconButtonStyle}"
+                            Content="&#xE8EA;">
+            <lib:DropDownButton.Flyout>
+                <MenuFlyout>
+                    <lib:RadioMenuFlyoutItem Text="Earpiece">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE8EA;"/>
+                        </MenuFlyoutItem.Icon>
+                    </lib:RadioMenuFlyoutItem>
+                    <lib:RadioMenuFlyoutItem Text="Speakerphone">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE7F5;"/>
+                        </MenuFlyoutItem.Icon>
+                    </lib:RadioMenuFlyoutItem>
+                    <lib:RadioMenuFlyoutItem Text="Bluetooth">
+                        <MenuFlyoutItem.Icon>
+                            <FontIcon FontFamily="{StaticResource SymbolThemeFontFamily}" Glyph="&#xE702;"/>
+                        </MenuFlyoutItem.Icon>
+                    </lib:RadioMenuFlyoutItem>
+                </MenuFlyout>
+            </lib:DropDownButton.Flyout>
+        </lib:DropDownButton>
     </Grid>
 </UserControl>
