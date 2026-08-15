@@ -67,6 +67,7 @@ namespace Unicord.Universal
 
             Suspending += OnSuspending;
             Resuming += OnResuming;
+            EnteredBackground += OnEnteredBackground;
             UnhandledException += OnUnhandledException;
 
             Debug.WriteLine("Welcome to Unicord!");
@@ -357,13 +358,49 @@ namespace Unicord.Universal
         {
             var deferral = e.SuspendingOperation.GetDeferral();
 
-            if (DiscordManager.Discord != null)
+            try
             {
-                temporaryCache = DiscordManager.Discord;
-                await DiscordManager.Discord.DisconnectAsync(4002);
+                if (DiscordManager.Discord != null)
+                {
+                    temporaryCache = DiscordManager.Discord;
+
+                    // The suspend deferral only allows a few seconds in total. A gateway disconnect
+                    // that stalls used to consume all of it, and the trace below was never written.
+                    await Task.WhenAny(DiscordManager.Discord.DisconnectAsync(4002), Task.Delay(1500));
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex);
             }
 
-            await Logger.OnSuspendingAsync();
+            try
+            {
+                await Logger.OnSuspendingAsync();
+            }
+            catch (Exception)
+            {
+                // Nothing useful is left to do if saving the trace itself fails.
+            }
+
+            deferral.Complete();
+        }
+
+        private async void OnEnteredBackground(object sender, EnteredBackgroundEventArgs e)
+        {
+            // Desktop rarely suspends a window that is merely minimised, so this is usually the first
+            // point at which buffered ETW events can reach the disk without closing Unicord.
+            var deferral = e.GetDeferral();
+
+            try
+            {
+                await Logger.SaveNowAsync();
+            }
+            catch (Exception)
+            {
+                // Logging must never take the app down.
+            }
+
             deferral.Complete();
         }
 
