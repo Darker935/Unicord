@@ -336,3 +336,5 @@ ASALocalRun/
 *.zip
 
 Output-Debug.txt
+# Rust build output for the DAVE native shim
+Unicord.Universal/Voice/native/unicord_dave/target/
