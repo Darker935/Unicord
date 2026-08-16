@@ -231,9 +231,12 @@ namespace Unicord.Universal.Voice
         private long _playbackUnderruns;
         private long _playbackTrimmed;
         private long _playbackSupplied;
-        private int _gcBase0;
-        private int _gcBase1;
-        private int _gcBase2;
+        // Seeded at construction. Left at zero, the first logged window reported the process
+        // total rather than the window's own count - one trace opened with gc=15889/6762/6639,
+        // which reads as catastrophe and means nothing.
+        private int _gcBase0 = GC.CollectionCount(0);
+        private int _gcBase1 = GC.CollectionCount(1);
+        private int _gcBase2 = GC.CollectionCount(2);
 
         public bool CaptureEnabled { get; set; } = true;
         public bool PlaybackEnabled { get; set; } = true;
