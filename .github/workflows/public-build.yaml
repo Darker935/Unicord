@@ -127,6 +127,27 @@ jobs:
           if ($armLibs) { $armLibs | ForEach-Object { Write-Host "Found $_" } }
           else { Write-Warning "No ARM32 libraries under $vsPath; the link step will fail again." }
 
+      # LNK1181 on bcrypt.lib: the linker is finding no ARM32 import libraries because
+      # the newest SDK on the image no longer ships um\arm. Older SDKs on the same image
+      # still do, so point LIB at the newest one that actually has them.
+      - name: Point the linker at an SDK with ARM32 imports
+        run: |
+          $kit = "${env:ProgramFiles(x86)}\Windows Kits\10\Lib"
+          $candidates = Get-ChildItem $kit -Directory -ErrorAction SilentlyContinue |
+            Where-Object { Test-Path (Join-Path $_.FullName 'um\arm\bcrypt.lib') } |
+            Sort-Object Name -Descending
+
+          if (-not $candidates) {
+            Write-Warning "No installed SDK carries um\arm\bcrypt.lib; the link will fail again."
+            Get-ChildItem $kit -Directory -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  present: $($_.Name)" }
+            exit 0
+          }
+
+          $sdk = $candidates[0].FullName
+          Write-Host "Using ARM32 imports from $sdk"
+          $env:LIB = "$sdk\um\arm;$sdk\ucrt\arm;$env:LIB"
+          echo "LIB=$env:LIB" >> $env:GITHUB_ENV
+
       - name: Attempt build
         run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
         working-directory: Unicord.Universal/Voice/native/unicord_dave
