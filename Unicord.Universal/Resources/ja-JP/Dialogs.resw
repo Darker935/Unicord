@@ -235,7 +235,7 @@
     <value>ファイルから読み込む</value>
   </data>
   <data name="TokenSubtitle.Text" xml:space="preserve">
-    <value>トークンの入手方法がわかりませんか? [こちらをクリック](https://example.com/)</value>
+    <value>トークンの入手方法がわかりませんか? [こちらをクリック](https://telegra.ph/How-to-get-Discord-token-08-16)</value>
   </data>
   <data name="TokenTitle.Text" xml:space="preserve">
     <value>あなたのDiscordトークンを入力してください</value>
