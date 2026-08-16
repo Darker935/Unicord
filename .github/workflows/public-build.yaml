@@ -44,8 +44,6 @@ jobs:
             target: x86_64-pc-windows-msvc
           - arch: x86
             target: i686-pc-windows-msvc
-          - arch: ARM64
-            target: aarch64-pc-windows-msvc
 
     steps:
       - name: Checkout
@@ -66,7 +64,7 @@ jobs:
           $bytes = [IO.File]::ReadAllBytes($dll)
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C; 'ARM64' = 0xAA64 }['${{ matrix.arch }}']
+          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C }['${{ matrix.arch }}']
           Write-Host ("machine=0x{0:X4} expected=0x{1:X4}" -f $machine, $expected)
           if ($machine -ne $expected) { throw "Wrong PE machine type for ${{ matrix.arch }}" }
 
@@ -170,11 +168,6 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: [dave, dave-arm32]
     timeout-minutes: 180
-    # ARM64 is expected to fail until Unicord.Universal.Voice ships a win10-arm64
-    # build; see the matrix comment below. Marked non-fatal so x64 and x86 keep
-    # publishing releases meanwhile, and so ARM64 turns green on its own once the
-    # package lands rather than needing this workflow touched again.
-    continue-on-error: ${{ matrix.arch == 'ARM64' }}
     strategy:
       fail-fast: false
       matrix:
@@ -187,23 +180,27 @@ jobs:
             os: windows-latest
             rid: win-x86
             extra: ''
-          # ARM64 is blocked on a dependency, not on this workflow. Unicord.Universal.Voice
-          # 1.0.2 (Unicord.Universal.csproj:749) is a native WinRT component publishing
-          # only win10-arm, win10-x64 and win10-x86, so .NET Native has no ARM64
+          # ARM64 is deliberately absent, and it is a dependency problem rather than a
+          # CI one. Unicord.Universal.Voice is a native WinRT component publishing only
+          # win10-arm, win10-x64 and win10-x86, so .NET Native has no ARM64
           # implementation for its winmd and nutc_driver exits 1 with no diagnostic
-          # (ILT0005). That is also the APPX1707 warning in every log, and why upstream
-          # only ever set AppxBundlePlatforms=arm - the package's RID set was the app's
-          # architecture ceiling.
+          # (ILT0005) - also the APPX1707 warning in every log. That package's RID set
+          # was always this app's architecture ceiling, which is why upstream only ever
+          # set AppxBundlePlatforms=arm.
           #
-          # The environment was ruled out across runs 31940067480 to 31947288840: the
-          # v143 ARM64 libraries installed and asserted, /d2threads8 cleared, and the same
-          # failure on windows-latest (VS 2026) and windows-2022 (VS 2022). An ARM64 build
-          # of that component is being produced separately; this leg stays here, on the
-          # VS 2022 image the project was built against, so it goes green when that lands.
-          - arch: ARM64
-            os: windows-2022
-            rid: win-arm64
-            extra: ''
+          # The environment was ruled out over runs 31940067480 to 31947288840: v143
+          # ARM64 libraries installed and asserted, /d2threads8 cleared, identical
+          # failure on VS 2026 and VS 2022. Rebuilding the component for ARM64 was then
+          # assessed and rejected: it links webrtc.lib from a prebuilt static library
+          # that exists for ARM, x64 and x86 only, the webrtc-uwp fork is deprecated and
+          # its final m71 release states ARM64 is not available, and the successor with
+          # ARM64 (WinRTC m84) exposes a different API without the zsLib proxies this
+          # component's audio device module is built on. That is a rewrite of a component
+          # nothing in this app constructs.
+          #
+          # Arm64 Windows is still served: it runs the x64 package under emulation on
+          # Windows 11 and the x86 one on Windows 10, so the loss is native performance,
+          # not reach.
           # Windows 10 Mobile. Unlike ARM64 this has everything it needs:
           # Unicord.Universal.Voice 1.0.2 does publish win10-arm, upstream's csproj
           # still says AppxBundlePlatforms=arm so ARM was its original target, the
@@ -234,28 +231,6 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
-
-      # windows-latest ships Visual Studio 2026 with only the x86/x64 v143 tools;
-      # the ARM64 ones are missing (actions/runner-images#14215). .NET Native's
-      # nutc_driver needs them and exits 1 with no diagnostic when they are absent,
-      # which is what ILT0005 was on run 31938786322.
-      - name: Install ARM64 MSVC build tools
-        if: matrix.arch == 'ARM64'
-        run: |
-          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
-          $vsPath = & "$installer\vswhere.exe" -latest -property installationPath
-          $p = Start-Process -FilePath "$installer\vs_installer.exe" -Wait -PassThru -ArgumentList @(
-            'modify', '--installPath', "`"$vsPath`"",
-            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64',
-            '--quiet', '--norestart', '--nocache'
-          )
-          Write-Host "Installer exit code $($p.ExitCode)"
-
-          # The installer also returns 0 when a component does not exist, so confirm
-          # the toolchain actually landed rather than trusting the exit code.
-          $arm64Libs = Get-ChildItem "$vsPath\VC\Tools\MSVC\*\lib\arm64" -Directory -ErrorAction SilentlyContinue
-          if (-not $arm64Libs) { throw "ARM64 MSVC libraries are still missing under $vsPath; .NET Native cannot link this platform." }
-          $arm64Libs | ForEach-Object { Write-Host "Found $_" }
 
       # The project targets 10.0.22621.0 and that SDK is no longer on the image.
       - name: Install Windows SDK 10.0.22621
@@ -390,7 +365,7 @@ jobs:
           $arches = Get-ChildItem release -Directory -ErrorAction SilentlyContinue | ForEach-Object { ($_.Name -split '-')[-1] }
           if (-not $arches) { throw "No architecture produced a package." }
           Write-Host "Shipping: $($arches -join ', ')"
-          foreach ($missing in @('x64','x86','ARM64','ARM') | Where-Object { $_ -notin $arches }) {
+          foreach ($missing in @('x64','x86','ARM') | Where-Object { $_ -notin $arches }) {
             Write-Warning "$missing did not build and is absent from this release."
           }
 
@@ -431,11 +406,12 @@ jobs:
           |---|---|
           | Windows 10/11 PC, normal (Intel/AMD) | x64 |
           | Older 32-bit PC | x86 |
-          | Windows on ARM (Surface Pro X and similar) | ARM64 |
+          | Windows 11 on Arm (Surface Pro X and similar) | x64, which Windows emulates |
+          | Windows 10 on Arm | x86, which Windows emulates |
           | Windows 10 Mobile phone | ARM |
 
-          If no ARM64 folder is present, ARM devices can use x64 on Windows 11 or x86 on
-          Windows 10, both of which Windows emulates.
+          The ARM folder is 32-bit Arm, for Windows 10 Mobile phones only. Windows on Arm
+          PCs no longer run 32-bit Arm apps, so take the emulated build listed above.
 
           Open that folder and run:
 
