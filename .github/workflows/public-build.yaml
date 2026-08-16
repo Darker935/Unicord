@@ -119,9 +119,13 @@ jobs:
           # long unmaintained and its ARM64 support was always the weakest leg, so this
           # platform builds against the CoreCLR-backed UWP runtime instead - the same
           # configuration Debug builds use. Startup is slower; the package is real.
+          # Turning .NET Native off also removes the RuntimeIdentifier it was supplying
+          # implicitly, and the project declares no RuntimeIdentifiers of its own, so
+          # packaging asks for win10-arm64 by name. It has to be set for restore too.
           - arch: ARM64
             rid: win-arm64
-            extra: '/p:UseDotNetNativeToolchain=false'
+            extra: '/p:UseDotNetNativeToolchain=false /p:RuntimeIdentifiers=win10-arm64'
+            rids: win10-arm64
 
     steps:
       - name: Checkout
@@ -197,7 +201,10 @@ jobs:
           echo "PACKAGE_VERSION=$stamped" >> $env:GITHUB_ENV
 
       - name: Restore
-        run: msbuild Unicord.sln /t:Restore /p:Configuration=Release /p:RuntimeIdentifier=${{ matrix.rid }}
+        run: |
+          [string[]]$restore = '/t:Restore', '/p:Configuration=Release', '/p:RuntimeIdentifier=${{ matrix.rid }}'
+          if ('${{ matrix.rids }}') { $restore += '/p:RuntimeIdentifiers=${{ matrix.rids }}' }
+          msbuild Unicord.sln $restore
 
       # Import the signing certificate so MSBuild can resolve it by thumbprint, which
       # is exactly how the documented local build signs. Skipped when the repository
@@ -240,8 +247,10 @@ jobs:
             '/p:AppxPackageSigningEnabled=false'
           }
 
+          # Split on whitespace: this field can carry several switches, and appending it
+          # whole would pass them to MSBuild as one argument.
           $extra = '${{ matrix.extra }}'
-          if ($extra) { $signing += $extra }
+          if ($extra) { $signing += ($extra -split '\s+') }
 
           # MSBuild wants a trailing separator here, and resolves a relative value against
           # the project directory rather than the workspace, so it is passed absolute.
