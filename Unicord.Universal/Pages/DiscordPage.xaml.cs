@@ -55,6 +55,21 @@ namespace Unicord.Universal.Pages
             WeakReferenceMessenger.Default.Register<DiscordPage, MessageCreateEventArgs>(this, (r, e) => r.Notification_MessageCreated(e.Event));
         }
 
+        /// <summary>
+        /// The guild rail and the channel list end above the floating user panel. That gap used to
+        /// be a hardcoded 68px, which was the height of the pill alone; now that a call adds a panel
+        /// on top of it the card is much taller, and the last channels ended up underneath it with
+        /// no way to scroll them into view. The gap follows the card's real height instead.
+        /// </summary>
+        private void UserPanel_SizeChanged(object sender, SizeChangedEventArgs e)
+        {
+            // the card's own margin sits outside its size
+            var reserved = e.NewSize.Height + UserPanel.Margin.Top + UserPanel.Margin.Bottom;
+
+            GuildRailPanel.Padding = new Thickness(0, 0, 0, reserved);
+            SidebarContentGrid.Padding = new Thickness(0, 0, 0, reserved);
+        }
+
         private void Current_VisibilityChanged(object sender, VisibilityChangedEventArgs e)
         {
             IsWindowVisible = e.Visible;
@@ -216,6 +231,18 @@ namespace Unicord.Universal.Pages
         {
             var service = SettingsService.GetForCurrentView();
             await service.OpenAsync();
+        }
+
+        private void MuteVoice_Click(object sender, RoutedEventArgs e)
+        {
+            if (Model.VoiceModel != null)
+                Model.VoiceModel.Muted = !Model.VoiceModel.Muted;
+        }
+
+        private void DeafenVoice_Click(object sender, RoutedEventArgs e)
+        {
+            if (Model.VoiceModel != null)
+                Model.VoiceModel.Deafened = !Model.VoiceModel.Deafened;
         }
 
         private async void TreeView_ItemInvoked(MUXC.TreeView sender, MUXC.TreeViewItemInvokedEventArgs args)

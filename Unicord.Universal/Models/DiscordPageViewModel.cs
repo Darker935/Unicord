@@ -1,4 +1,5 @@
-﻿using System.Collections.Frozen;
+﻿using System;
+using System.Collections.Frozen;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
@@ -11,6 +12,7 @@ using Microsoft.Toolkit.Uwp.Helpers;
 using Unicord.Universal.Extensions;
 using Unicord.Universal.Models.Channels;
 using Unicord.Universal.Models.Guild;
+using Unicord.Universal.Models.User;
 using Unicord.Universal.Models.Voice;
 using Unicord.Universal.Services;
 using Windows.ApplicationModel;
@@ -22,6 +24,7 @@ namespace Unicord.Universal.Models
     {
         private VoiceConnectionModel _voiceModel;
         private DiscordUser _currentUser;
+        private UserViewModel _currentUserModel;
         private DiscordChannel _currentChannel;
         private ChannelViewModel _selectedDM;
         private GuildListViewModel _selectedGuild;
@@ -101,8 +104,59 @@ namespace Unicord.Universal.Models
         public ObservableCollection<IGuildListViewModel> Guilds { get; }
         public ObservableCollection<ChannelViewModel> UnreadDMs { get; }
 
-        public DiscordUser CurrentUser { get => _currentUser; set => OnPropertySet(ref _currentUser, value); }
-        public VoiceConnectionModel VoiceModel { get => _voiceModel; set => OnPropertySet(ref _voiceModel, value); }
+        public DiscordUser CurrentUser
+        {
+            get => _currentUser;
+            set
+            {
+                // the wrapper below is built from whoever this is, so it stops being valid here
+                _currentUserModel = null;
+                OnPropertySet(ref _currentUser, value, nameof(CurrentUser), nameof(CurrentUserModel));
+            }
+        }
+
+        /// <summary>
+        /// The current user as a view model, so the user pill can show presence and activity the
+        /// same way every other avatar in the app does.
+        ///
+        /// Not cached until there is a user to cache. The pill binds this on load, which can happen
+        /// before the gateway has said who we are, and a wrapper built around nothing would have
+        /// been kept for the life of the page - a permanently blank avatar.
+        /// </summary>
+        public UserViewModel CurrentUserModel
+        {
+            get
+            {
+                var user = discord?.CurrentUser;
+                if (user == null)
+                    return null;
+
+                return _currentUserModel ??= new UserViewModel(user, null, this);
+            }
+        }
+        public VoiceConnectionModel VoiceModel
+        {
+            get => _voiceModel;
+            set
+            {
+                if (_voiceModel == value)
+                    return;
+                if (_voiceModel != null)
+                    _voiceModel.Disconnected -= OnVoiceDisconnected;
+                OnPropertySet(ref _voiceModel, value);
+                if (_voiceModel != null)
+                    _voiceModel.Disconnected += OnVoiceDisconnected;
+            }
+        }
+
+        private void OnVoiceDisconnected(object sender, EventArgs e)
+        {
+            syncContext.Post(_ =>
+            {
+                if (ReferenceEquals(_voiceModel, sender))
+                    VoiceModel = null;
+            }, null);
+        }
 
         public DiscordChannel CurrentChannel { get => _currentChannel; set => OnPropertySet(ref _currentChannel, value); }
         public ChannelViewModel SelectedDM { get => _selectedDM; set => OnPropertySet(ref _selectedDM, value); }
