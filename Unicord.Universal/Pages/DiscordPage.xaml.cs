@@ -137,8 +137,13 @@ namespace Unicord.Universal.Pages
                 SplitPaneService.GetForCurrentView()
                     .ToggleLeftPane();
 
-                LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
-                MainFrame.Navigate(typeof(FriendsPage));
+                // What to show first is decided once READY has landed, in LoadAsync. This used to
+                // open the DM list and the friends page here as well, and the two run off unrelated
+                // triggers - the XAML Loaded event and the gateway's READY - with no order between
+                // them. When READY won, LoadAsync restored the last channel, selected its guild and
+                // navigated the sidebar, then awaited the guild sync; this ran in that gap and put
+                // the DM list back over the top. The result was a DM sidebar next to a guild
+                // channel, with that guild still selected in the rail.
             }
             catch (Exception ex)
             {
@@ -165,8 +170,8 @@ namespace Unicord.Universal.Pages
                 {
                     Analytics.TrackEvent("DiscordPage_NavigateToFriendsPage");
                     Model.IsFriendsSelected = true;
-                    //LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
-                    //MainFrame.Navigate(typeof(FriendsPage));
+                    LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
+                    MainFrame.Navigate(typeof(FriendsPage));
                 }
 
                 var possibleConnection = await VoiceConnectionModel.FindExistingConnectionAsync();
