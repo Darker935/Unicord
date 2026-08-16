@@ -3,20 +3,30 @@ using DSharpPlus.Entities;
 using Unicord.Universal.Models;
 using Unicord.Universal.Models.Channels;
 using Unicord.Universal.Services;
+using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
 using Windows.UI.Xaml.Navigation;
 
 namespace Unicord.Universal.Pages.Subpages
 {
-    public sealed partial class DMChannelsPage : Page
+    public sealed partial class DMChannelsPage : Page, ISidebarInsetTarget
     {
         private DMChannelsViewModel _model;
+        private readonly Thickness _listPadding;
 
         public DMChannelsPage()
         {
             InitializeComponent();
             _model = DataContext as DMChannelsViewModel;
+
+            // the list's own tail, kept so the reservation adds to it rather than replacing it
+            _listPadding = dmsList.Padding;
         }
+
+        /// <inheritdoc/>
+        public void SetBottomInset(double inset)
+            => dmsList.Padding = new Thickness(
+                _listPadding.Left, _listPadding.Top, _listPadding.Right, _listPadding.Bottom + inset);
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {

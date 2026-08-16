@@ -488,6 +488,7 @@
     <Compile Include="Pages\DiscordPage.xaml.cs">
       <DependentUpon>DiscordPage.xaml</DependentUpon>
     </Compile>
+    <Compile Include="Pages\ISidebarInsetTarget.cs" />
     <Compile Include="Pages\LoginPage.xaml.cs">
       <DependentUpon>LoginPage.xaml</DependentUpon>
     </Compile>
