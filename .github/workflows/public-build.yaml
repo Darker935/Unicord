@@ -78,54 +78,20 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows 10 Mobile probe. thumbv7a-pc-windows-msvc is Rust Tier 3: no prebuilt
-  # std, so it needs nightly and -Z build-std, and libcrux's portable path is
-  # untested there. Allowed to fail; it exists to answer whether phone calls are
-  # possible at all, and nothing else depends on it.
+  # Windows 10 Mobile (ARM32) was probed on runs 31938305956 and 31938786322 and
+  # is settled: not possible on a hosted runner, and not for a Rust reason.
+  #
+  # Every crate compiled for thumbv7a-pc-windows-msvc, including a from-source std
+  # via -Z build-std. Only link.exe failed, with no diagnostic. windows-latest is
+  # Windows Server 2025 with Visual Studio 2026, and VS 2026 removed the ARM32
+  # toolchain outright, so Microsoft.VisualStudio.Component.VC.Tools.ARM does not
+  # exist to install - the installer returned 0 having done nothing. Linking ARM32
+  # needs the VS 2022 v143 build tools on an older image.
+  #
+  # So calls cannot work on Windows 10 Mobile from CI builds, and call entry points
+  # must be gated on unicord_dave.dll actually loading rather than on OS version.
+  # The probe job is removed rather than left failing on every run.
   # ---------------------------------------------------------------------------
-  dave-arm32-probe:
-    name: DAVE ARM32 probe (experimental)
-    runs-on: windows-latest
-    continue-on-error: true
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install nightly with rust-src
-        run: |
-          rustup toolchain install nightly
-          rustup component add rust-src --toolchain nightly
-
-      # The first probe compiled every crate, including a from-source std, and died only
-      # at link.exe with no diagnostic - the signature of a missing ARM32 MSVC toolchain
-      # rather than a Rust limitation. This installs it so the probe can answer properly.
-      - name: Install ARM32 MSVC build tools
-        continue-on-error: true
-        run: |
-          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
-          $vsPath = & "$installer\vswhere.exe" -latest -property installationPath
-          Write-Host "Adding VC.Tools.ARM to $vsPath"
-          $p = Start-Process -FilePath "$installer\vs_installer.exe" -Wait -PassThru -ArgumentList @(
-            'modify', '--installPath', "`"$vsPath`"",
-            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM',
-            '--quiet', '--norestart', '--nocache'
-          )
-          Write-Host "Installer exit code $($p.ExitCode)"
-
-      - name: Attempt build
-        working-directory: Unicord.Universal/Voice/native/unicord_dave
-        run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
-
-      - name: Report
-        if: always()
-        run: |
-          $dll = "Unicord.Universal/Voice/native/unicord_dave/target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll"
-          if (Test-Path $dll) {
-            Write-Host "ARM32 DAVE built. Windows Phone calls are technically possible; wire up an ARM leg."
-          } else {
-            Write-Host "ARM32 DAVE did not build. Calls cannot work on Windows 10 Mobile and must stay disabled there."
-          }
 
   # ---------------------------------------------------------------------------
   # App packages. One runner per architecture because Release UWP goes through
@@ -167,6 +133,28 @@ jobs:
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
+
+      # windows-latest ships Visual Studio 2026 with only the x86/x64 v143 tools;
+      # the ARM64 ones are missing (actions/runner-images#14215). .NET Native's
+      # nutc_driver needs them and exits 1 with no diagnostic when they are absent,
+      # which is what ILT0005 was on run 31938786322.
+      - name: Install ARM64 MSVC build tools
+        if: matrix.arch == 'ARM64'
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vsPath = & "$installer\vswhere.exe" -latest -property installationPath
+          $p = Start-Process -FilePath "$installer\vs_installer.exe" -Wait -PassThru -ArgumentList @(
+            'modify', '--installPath', "`"$vsPath`"",
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM64',
+            '--quiet', '--norestart', '--nocache'
+          )
+          Write-Host "Installer exit code $($p.ExitCode)"
+
+          # The installer also returns 0 when a component does not exist, so confirm
+          # the toolchain actually landed rather than trusting the exit code.
+          $arm64Libs = Get-ChildItem "$vsPath\VC\Tools\MSVC\*\lib\arm64" -Directory -ErrorAction SilentlyContinue
+          if (-not $arm64Libs) { throw "ARM64 MSVC libraries are still missing under $vsPath; .NET Native cannot link this platform." }
+          $arm64Libs | ForEach-Object { Write-Host "Found $_" }
 
       # The project targets 10.0.22621.0 and that SDK is no longer on the image.
       - name: Install Windows SDK 10.0.22621
