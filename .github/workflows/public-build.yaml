@@ -1,0 +1,329 @@
+# Builds installable, self-signed Unicord packages from ai-dev for people to sideload.
+#
+# Two things make this different from build.yaml (which is upstream's, targets redesign,
+# and packages the Store identity 24101WamWooWamRD.Unicord):
+#
+#   1. It builds Unicord.Universal.csproj, whose manifest is the Canary identity, and
+#      rewrites that identity to Darker935.Unicord / CN=Darker935 for the duration of the
+#      build. Nothing committed changes, so the local Canary flow in the vault still works.
+#   2. Discord has required DAVE for every call since 2026-03-01, and unicord_dave.dll is
+#      architecture-specific, so the native library is cross-compiled per platform first.
+#      An architecture without a working DLL cannot make calls at all.
+
+name: Public Build
+
+on:
+  push:
+    branches: [ ai-dev ]
+  pull_request:
+    branches: [ ai-dev ]
+  workflow_dispatch:
+
+env:
+  IDENTITY_NAME: Darker935.Unicord
+  IDENTITY_PUBLISHER: CN=Darker935
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+
+  # ---------------------------------------------------------------------------
+  # Native DAVE library, one build per shipped architecture. All three are Rust
+  # Tier 1 targets, so a failure here is a real regression, not an expected one.
+  # ---------------------------------------------------------------------------
+  dave:
+    name: DAVE ${{ matrix.arch }}
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            target: x86_64-pc-windows-msvc
+          - arch: x86
+            target: i686-pc-windows-msvc
+          - arch: ARM64
+            target: aarch64-pc-windows-msvc
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build unicord_dave
+        working-directory: Unicord.Universal/Voice/native/unicord_dave
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Verify architecture
+        working-directory: Unicord.Universal/Voice/native/unicord_dave
+        run: |
+          $dll = "target/${{ matrix.target }}/release/unicord_dave.dll"
+          if (-not (Test-Path $dll)) { throw "unicord_dave.dll was not produced for ${{ matrix.target }}" }
+          $bytes = [IO.File]::ReadAllBytes($dll)
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C; 'ARM64' = 0xAA64 }['${{ matrix.arch }}']
+          Write-Host ("machine=0x{0:X4} expected=0x{1:X4}" -f $machine, $expected)
+          if ($machine -ne $expected) { throw "Wrong PE machine type for ${{ matrix.arch }}" }
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dave-${{ matrix.arch }}
+          path: Unicord.Universal/Voice/native/unicord_dave/target/${{ matrix.target }}/release/unicord_dave.dll
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows 10 Mobile probe. thumbv7a-pc-windows-msvc is Rust Tier 3: no prebuilt
+  # std, so it needs nightly and -Z build-std, and libcrux's portable path is
+  # untested there. Allowed to fail; it exists to answer whether phone calls are
+  # possible at all, and nothing else depends on it.
+  # ---------------------------------------------------------------------------
+  dave-arm32-probe:
+    name: DAVE ARM32 probe (experimental)
+    runs-on: windows-latest
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly with rust-src
+        run: |
+          rustup toolchain install nightly
+          rustup component add rust-src --toolchain nightly
+
+      - name: Attempt build
+        working-directory: Unicord.Universal/Voice/native/unicord_dave
+        run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
+
+      - name: Report
+        if: always()
+        run: |
+          $dll = "Unicord.Universal/Voice/native/unicord_dave/target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll"
+          if (Test-Path $dll) {
+            Write-Host "ARM32 DAVE built. Windows Phone calls are technically possible; wire up an ARM leg."
+          } else {
+            Write-Host "ARM32 DAVE did not build. Calls cannot work on Windows 10 Mobile and must stay disabled there."
+          }
+
+  # ---------------------------------------------------------------------------
+  # App packages. One runner per architecture because Release UWP goes through
+  # the .NET Native toolchain and is slow.
+  # ---------------------------------------------------------------------------
+  package:
+    name: Package ${{ matrix.arch }}
+    runs-on: windows-latest
+    needs: dave
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            rid: win-x64
+          - arch: x86
+            rid: win-x86
+          - arch: ARM64
+            rid: win-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          fetch-depth: 0
+
+      - name: Fetch native DAVE for ${{ matrix.arch }}
+        uses: actions/download-artifact@v4
+        with:
+          name: dave-${{ matrix.arch }}
+          path: dave-native
+
+      - name: Install native DAVE
+        run: |
+          Copy-Item dave-native/unicord_dave.dll Unicord.Universal/Voice/native/unicord_dave.dll -Force
+          Write-Host "Installed $((Get-Item Unicord.Universal/Voice/native/unicord_dave.dll).Length) byte DAVE library"
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      # The project targets 10.0.22621.0 and that SDK is no longer on the image.
+      - name: Install Windows SDK 10.0.22621
+        run: |
+          curl.exe -L https://go.microsoft.com/fwlink/?linkid=2250105 -o winsdksetup.exe
+          Start-Process -FilePath ./winsdksetup.exe -ArgumentList '/features','+','/q' -Wait
+          Write-Host "SDK install finished"
+
+      # Identity, publisher and version are rewritten here and never committed, so
+      # ai-dev keeps the Canary identity the vault's local build flow depends on.
+      - name: Rewrite package identity
+        run: |
+          $ns = 'http://schemas.microsoft.com/appx/manifest/foundation/windows10'
+          $path = Resolve-Path 'Unicord.Universal/Package.appxmanifest'
+          $xml = [System.Xml.XmlDocument]::new()
+          $xml.Load($path)
+
+          $identity = $xml.GetElementsByTagName('Identity', $ns)[0]
+          $version = [System.Version]::Parse($identity.GetAttribute('Version'))
+          $stamped = [System.Version]::new($version.Major, $version.Minor, $version.Build, ${{ github.run_number }})
+
+          $identity.SetAttribute('Name', $env:IDENTITY_NAME)
+          $identity.SetAttribute('Publisher', $env:IDENTITY_PUBLISHER)
+          $identity.SetAttribute('Version', $stamped.ToString())
+          $xml.Save($path)
+
+          Write-Host "Identity : $($env:IDENTITY_NAME)"
+          Write-Host "Publisher: $($env:IDENTITY_PUBLISHER)"
+          Write-Host "Version  : $stamped"
+          echo "PACKAGE_VERSION=$stamped" >> $env:GITHUB_ENV
+
+      - name: Restore
+        run: msbuild Unicord.sln /t:Restore /p:Configuration=Release /p:RuntimeIdentifier=${{ matrix.rid }}
+
+      # Import the signing certificate so MSBuild can resolve it by thumbprint, which
+      # is exactly how the documented local build signs. Skipped when the repository
+      # has no certificate secret yet, leaving an unsigned but complete package.
+      - name: Import signing certificate
+        id: cert
+        env:
+          PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) {
+            Write-Warning "SIGNING_PFX_BASE64 is not set. Building unsigned; the package will not be installable."
+            echo "signed=false" >> $env:GITHUB_OUTPUT
+            exit 0
+          }
+
+          [IO.File]::WriteAllBytes("$env:RUNNER_TEMP/signing.pfx", [Convert]::FromBase64String($env:PFX_BASE64))
+          $password = ConvertTo-SecureString $env:PFX_PASSWORD -AsPlainText -Force
+          $cert = Import-PfxCertificate -FilePath "$env:RUNNER_TEMP/signing.pfx" -CertStoreLocation Cert:\CurrentUser\My -Password $password
+
+          if ($cert.Subject -ne $env:IDENTITY_PUBLISHER) {
+            throw "Certificate subject '$($cert.Subject)' does not match manifest Publisher '$($env:IDENTITY_PUBLISHER)'. Windows will refuse to install this package."
+          }
+
+          Write-Host "Signing as $($cert.Subject), expires $($cert.NotAfter.ToString('yyyy-MM-dd'))"
+          echo "signed=true" >> $env:GITHUB_OUTPUT
+          echo "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+
+      - name: Build package
+        run: |
+          # An empty PackageCertificateKeyFile is deliberate: it disables the committed
+          # Unicord.Universal_TemporaryKey.pfx, whose key nobody here has, and leaves the
+          # thumbprint to resolve the imported certificate instead.
+          $signing = if ('${{ steps.cert.outputs.signed }}' -eq 'true') {
+            @('/p:AppxPackageSigningEnabled=true', '/p:PackageCertificateThumbprint=${{ steps.cert.outputs.thumbprint }}', '/p:PackageCertificateKeyFile=')
+          } else {
+            @('/p:AppxPackageSigningEnabled=false')
+          }
+
+          # MSBuild wants a trailing separator here, and resolves a relative value against
+          # the project directory rather than the workspace, so it is passed absolute.
+          $outDir = "$env:GITHUB_WORKSPACE\out\"
+
+          msbuild Unicord.Universal/Unicord.Universal.csproj `
+            /p:Configuration=Release `
+            /p:Platform=${{ matrix.arch }} `
+            /p:AppxBundle=Never `
+            /p:UapAppxPackageBuildMode=SideloadOnly `
+            /p:AppxPackageDir=$outDir `
+            @signing
+
+      - name: Remove signing certificate
+        if: always()
+        run: |
+          Remove-Item "$env:RUNNER_TEMP/signing.pfx" -Force -ErrorAction SilentlyContinue
+          if ('${{ steps.cert.outputs.thumbprint }}') {
+            Remove-Item "Cert:\CurrentUser\My\${{ steps.cert.outputs.thumbprint }}" -Force -ErrorAction SilentlyContinue
+          }
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicord-${{ env.PACKAGE_VERSION }}-${{ matrix.arch }}
+          path: out/
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # One downloadable artifact: every architecture, the public certificate people
+  # must trust, and instructions.
+  # ---------------------------------------------------------------------------
+  collect:
+    name: Collect release
+    runs-on: windows-latest
+    needs: package
+
+    steps:
+      - name: Download packages
+        uses: actions/download-artifact@v4
+        with:
+          pattern: unicord-*
+          path: release
+
+      # Public half of the signing certificate only. The private key never leaves
+      # the secret, and a .cer cannot be used to sign anything.
+      - name: Export public certificate
+        env:
+          PFX_BASE64: ${{ secrets.SIGNING_PFX_BASE64 }}
+          PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:PFX_BASE64)) {
+            Write-Warning "No certificate secret; skipping .cer export."
+            exit 0
+          }
+          $bytes = [Convert]::FromBase64String($env:PFX_BASE64)
+          $cert = [System.Security.Cryptography.X509Certificates.X509Certificate2]::new($bytes, $env:PFX_PASSWORD)
+          [IO.File]::WriteAllBytes("release/Unicord.cer", $cert.Export('Cert'))
+          Write-Host "Exported public certificate for $($cert.Subject)"
+
+      - name: Write install instructions
+        run: |
+          @'
+          # Installing this build
+
+          These packages are signed with a self-signed certificate, so Windows needs to be
+          told to trust it once. You only have to do this the first time.
+
+          ## 1. Trust the certificate
+
+          Right-click Start, choose Terminal (Admin), then run this from the folder you
+          extracted:
+
+              certutil -addstore TrustedPeople Unicord.cer
+
+          ## 2. Install the package for your device
+
+          | Your device | Folder |
+          |---|---|
+          | Windows 10/11 PC, normal (Intel/AMD) | x64 |
+          | Older 32-bit PC | x86 |
+          | Windows on ARM (Surface Pro X and similar) | ARM64 |
+
+          Open that folder and run:
+
+              Add-AppxPackage -Path (Get-ChildItem *.appx).FullName -DependencyPath (Get-ChildItem -Recurse Dependencies\*.appx).FullName
+
+          If Windows says the package is already installed, uninstall the older copy first.
+
+          ## Notes
+
+          - This is a community build from the ai-dev branch, not the official Unicord from
+            the Microsoft Store, and it installs alongside it rather than replacing it.
+          - Voice calls need Discord's DAVE end-to-end encryption, which Discord has required
+            since 1 March 2026. Each package carries the encryption library built for its own
+            architecture. Windows 10 Mobile is not supported.
+          - Requires Windows 10 version 1703 or newer.
+          '@ | Set-Content release/INSTALL.md -Encoding utf8
+
+      - name: Upload release
+        uses: actions/upload-artifact@v4
+        with:
+          name: unicord-release
+          path: release/
+          if-no-files-found: error
