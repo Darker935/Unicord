@@ -63,13 +63,29 @@ namespace Unicord.Universal.Models.Emoji
             Url = null;
         }
 
-        public EmojiViewModel(ulong id, string text, bool isAnimated) : this()
+        /// <summary>
+        /// A plain unicode emoji, drawn as a glyph rather than fetched from the CDN.
+        /// </summary>
+        public EmojiViewModel(string unicode) : this()
+        {
+            Unicode = unicode;
+            Name = DiscordEmoji.DiscordNameLookup.TryGetValue(unicode, out var name) ? name : unicode;
+            IsAvailable = true;
+            IsValid = !string.IsNullOrEmpty(unicode);
+        }
+
+        /// <param name="size">
+        /// The CDN size to request. It must exceed the size the emoji is drawn at once display
+        /// scaling is applied, otherwise the image is upscaled and looks soft next to the unicode
+        /// emoji beside it, which are font glyphs and always sharp.
+        /// </param>
+        public EmojiViewModel(ulong id, string text, bool isAnimated, int size = 64) : this()
         {
             Name = text;
             Unicode = "";
             Url = isAnimated
-                    ? $"https://cdn.discordapp.com/emojis/{id.ToString(CultureInfo.InvariantCulture)}.gif?size=32"
-                    : $"https://cdn.discordapp.com/emojis/{id.ToString(CultureInfo.InvariantCulture)}.png?size=32";
+                    ? $"https://cdn.discordapp.com/emojis/{id.ToString(CultureInfo.InvariantCulture)}.gif?size={size}"
+                    : $"https://cdn.discordapp.com/emojis/{id.ToString(CultureInfo.InvariantCulture)}.png?size={size}";
             IsAvailable = true;
             IsValid = true;
         }
