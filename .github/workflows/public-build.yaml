@@ -112,14 +112,16 @@ jobs:
           - arch: x86
             rid: win-x86
             extra: ''
-          # The project passes /d2threads8 to nutc through IlcParameters. Upstream only
-          # ever built arm, x86 and x64, so that flag has never been exercised on ARM64,
-          # and it is the one non-default input to the compiler that fails there. Cleared
-          # here to test that; the ARM64 libraries are demonstrably present now, so the
-          # runner-image toolchain gap is ruled out.
+          # ARM64 cannot go through .NET Native. nutc_driver exits 1 with no diagnostic
+          # (ILT0005) and both candidate causes are eliminated: the ARM64 v143 libraries
+          # are present and asserted (runs 31940067480, 31941218858), and clearing the
+          # project's /d2threads8 IlcParameters changed nothing. .NET Native 2.2.12 is
+          # long unmaintained and its ARM64 support was always the weakest leg, so this
+          # platform builds against the CoreCLR-backed UWP runtime instead - the same
+          # configuration Debug builds use. Startup is slower; the package is real.
           - arch: ARM64
             rid: win-arm64
-            extra: '/p:IlcParameters='
+            extra: '/p:UseDotNetNativeToolchain=false'
 
     steps:
       - name: Checkout
