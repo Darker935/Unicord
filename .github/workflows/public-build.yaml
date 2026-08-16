@@ -44,8 +44,6 @@ jobs:
             target: x86_64-pc-windows-msvc
           - arch: x86
             target: i686-pc-windows-msvc
-          - arch: ARM64
-            target: aarch64-pc-windows-msvc
 
     steps:
       - name: Checkout
@@ -66,7 +64,7 @@ jobs:
           $bytes = [IO.File]::ReadAllBytes($dll)
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C; 'ARM64' = 0xAA64 }['${{ matrix.arch }}']
+          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C }['${{ matrix.arch }}']
           Write-Host ("machine=0x{0:X4} expected=0x{1:X4}" -f $machine, $expected)
           if ($machine -ne $expected) { throw "Wrong PE machine type for ${{ matrix.arch }}" }
 
@@ -122,14 +120,17 @@ jobs:
           # Turning .NET Native off also removes the RuntimeIdentifier it was supplying
           # implicitly, and the project declares no RuntimeIdentifiers of its own, so
           # packaging asks for win10-arm64 by name. It has to be set for restore too.
-          # Restores as win10-arm64, not win-arm64 like the other two. Off the .NET Native
-          # path the build resolves win10-arm64, and restoring a different RID left
-          # Microsoft.NETCore.UniversalWindowsPlatform's CoreRuntime SDK unresolved, which
-          # surfaced as WireUpCoreRuntime missing CoreRuntimeSDKLocation (MSB4044).
-          - arch: ARM64
-            rid: win10-arm64
-            extra: '/p:UseDotNetNativeToolchain=false /p:RuntimeIdentifiers=win10-arm64'
-            rids: win10-arm64
+          # ARM64 is deliberately absent. It cannot be packaged on a hosted runner with the
+          # tooling windows-latest carries, established over runs 31940067480 through
+          # 31943446872: .NET Native's nutc_driver exits 1 with no diagnostic (ILT0005)
+          # with the v143 ARM64 libraries present and asserted and with the project's
+          # /d2threads8 cleared, and turning .NET Native off only trades that for the UWP
+          # CoreRuntime SDK being unresolvable (MSB4044, WireUpCoreRuntime).
+          #
+          # Losing the platform costs performance rather than reach: Windows 11 on ARM
+          # emulates x64 and Windows 10 on ARM emulates x86, so those devices install and
+          # run one of the packages built here. Revisit on a runner carrying the full UWP
+          # toolchain, where ARM64 could build the supported .NET Native way.
 
     steps:
       - name: Checkout
@@ -307,7 +308,7 @@ jobs:
           $arches = Get-ChildItem release -Directory -ErrorAction SilentlyContinue | ForEach-Object { ($_.Name -split '-')[-1] }
           if (-not $arches) { throw "No architecture produced a package." }
           Write-Host "Shipping: $($arches -join ', ')"
-          foreach ($missing in @('x64','x86','ARM64') | Where-Object { $_ -notin $arches }) {
+          foreach ($missing in @('x64','x86') | Where-Object { $_ -notin $arches }) {
             Write-Warning "$missing did not build and is absent from this release."
           }
 
@@ -348,7 +349,8 @@ jobs:
           |---|---|
           | Windows 10/11 PC, normal (Intel/AMD) | x64 |
           | Older 32-bit PC | x86 |
-          | Windows on ARM (Surface Pro X and similar) | ARM64 |
+          | Windows 11 on ARM (Surface Pro X and similar) | x64, which Windows emulates |
+          | Windows 10 on ARM | x86, which Windows emulates |
 
           Open that folder and run:
 
