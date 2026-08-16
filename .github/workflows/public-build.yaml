@@ -97,6 +97,22 @@ jobs:
           rustup toolchain install nightly
           rustup component add rust-src --toolchain nightly
 
+      # The first probe compiled every crate, including a from-source std, and died only
+      # at link.exe with no diagnostic - the signature of a missing ARM32 MSVC toolchain
+      # rather than a Rust limitation. This installs it so the probe can answer properly.
+      - name: Install ARM32 MSVC build tools
+        continue-on-error: true
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vsPath = & "$installer\vswhere.exe" -latest -property installationPath
+          Write-Host "Adding VC.Tools.ARM to $vsPath"
+          $p = Start-Process -FilePath "$installer\vs_installer.exe" -Wait -PassThru -ArgumentList @(
+            'modify', '--installPath', "`"$vsPath`"",
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM',
+            '--quiet', '--norestart', '--nocache'
+          )
+          Write-Host "Installer exit code $($p.ExitCode)"
+
       - name: Attempt build
         working-directory: Unicord.Universal/Voice/native/unicord_dave
         run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
@@ -217,10 +233,13 @@ jobs:
           # An empty PackageCertificateKeyFile is deliberate: it disables the committed
           # Unicord.Universal_TemporaryKey.pfx, whose key nobody here has, and leaves the
           # thumbprint to resolve the imported certificate instead.
-          $signing = if ('${{ steps.cert.outputs.signed }}' -eq 'true') {
-            @('/p:AppxPackageSigningEnabled=true', '/p:PackageCertificateThumbprint=${{ steps.cert.outputs.thumbprint }}', '/p:PackageCertificateKeyFile=')
+          # [string[]] is load-bearing: an if statement returns its value through the
+          # pipeline, which unwraps a single-element array into a bare string, and
+          # splatting a string passes it one character per argument.
+          [string[]]$signing = if ('${{ steps.cert.outputs.signed }}' -eq 'true') {
+            '/p:AppxPackageSigningEnabled=true', '/p:PackageCertificateThumbprint=${{ steps.cert.outputs.thumbprint }}', '/p:PackageCertificateKeyFile='
           } else {
-            @('/p:AppxPackageSigningEnabled=false')
+            '/p:AppxPackageSigningEnabled=false'
           }
 
           # MSBuild wants a trailing separator here, and resolves a relative value against
@@ -233,7 +252,7 @@ jobs:
             /p:AppxBundle=Never `
             /p:UapAppxPackageBuildMode=SideloadOnly `
             /p:AppxPackageDir=$outDir `
-            @signing
+            $signing
 
       - name: Remove signing certificate
         if: always()
