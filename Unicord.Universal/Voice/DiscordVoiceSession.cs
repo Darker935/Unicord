@@ -144,6 +144,7 @@ namespace Unicord.Universal.Voice
         private bool _muted;
         private bool _deafened;
         private bool _disposed;
+        private int _faulted;
         private bool _udpReady;
         private string _selectedMode;
 
@@ -476,9 +477,14 @@ namespace Unicord.Universal.Voice
                 await SendRtpPacketAsync(SilenceFrame, NextTimestamp());
             await SendSpeakingAsync(false);
 
-            // From here the RTP clock is paced against wall time, not the capture callback.
-            _clockBaseFrame = _frameIndex;
-            _streamWatch.Restart();
+            // The RTP clock is paced against wall time rather than the capture callback, but
+            // it is not started here. Starting it at session-ready began counting before the
+            // audio graph was producing anything - the graph takes around 100 ms to come up -
+            // so by the first captured frame the clock already expected several that had
+            // never existed. FillClockGapAsync saw the deficit and resynced, which is a
+            // discontinuity in the very first audio the far end receives, and matches the
+            // brief robotic stretch heard on joining. It starts on the first real frame
+            // instead, in SendCapturedFrameAsync.
 
             _ready.TrySetResult(true);
             Logger.Log("Voice session ready (" + _selectedMode + ")");
@@ -636,6 +642,14 @@ namespace Unicord.Universal.Voice
         {
             if (_disposed || _aes == null || _encoder == null)
                 return;
+
+            // The wall clock starts with the audio, not with the handshake, so it can never
+            // owe frames the microphone was not yet producing.
+            if (!_streamWatch.IsRunning)
+            {
+                _clockBaseFrame = _frameIndex;
+                _streamWatch.Restart();
+            }
 
             UpdateAdaptiveQuality();
 
@@ -1687,11 +1701,37 @@ namespace Unicord.Universal.Voice
             catch (Exception ex)
             {
                 Logger.LogError(ex);
+                FaultSession("websocket send failed: " + ex.GetType().Name + ": " + ex.Message);
             }
             finally
             {
                 _wsSendLock.Release();
             }
+        }
+
+        /// <summary>
+        /// Ends the session after a failure that leaves the websocket unusable.
+        /// </summary>
+        /// <remarks>
+        /// A send failure used to be logged and swallowed, so a socket that died without a
+        /// close frame left the session believing it was still connected. Heartbeats stopped
+        /// reaching Discord, Discord stopped relaying audio, and the client went on capturing
+        /// into a socket that was gone - silent, with nothing in the UI to say so, and
+        /// recoverable only by leaving the channel and rejoining. One trace ends exactly
+        /// there: a heartbeat send throws and the session simply continues.
+        ///
+        /// Signalled once. Disconnected is what the connection model already listens to for
+        /// an external teardown, and it holds a single connect gate, so this cannot turn into
+        /// repeated reconnect attempts.
+        /// </remarks>
+        private void FaultSession(string reason)
+        {
+            if (_disposed || Interlocked.Exchange(ref _faulted, 1) == 1)
+                return;
+
+            Logger.Log("Voice session faulted, ending: " + reason);
+            _ready.TrySetException(new InvalidOperationException("Voice session faulted: " + reason));
+            Disconnected?.Invoke(this, EventArgs.Empty);
         }
 
         private static void WriteUInt16BigEndian(byte[] buffer, int offset, ushort value)
