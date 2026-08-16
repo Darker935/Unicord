@@ -78,27 +78,18 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows 10 Mobile probe, on windows-2022 because Visual Studio 2026 removed the
-  # ARM32 toolchain and VC.Tools.ARM cannot be installed there at all.
+  # Native DAVE for Windows 10 Mobile. Separate from the job above because ARM32 is a
+  # Rust Tier 3 target with no prebuilt std, so it needs nightly and -Z build-std, and
+  # because it must run on windows-2022: Visual Studio 2026 removed the ARM32 toolchain
+  # entirely, so VC.Tools.ARM cannot even be installed on windows-latest.
   #
-  # Progress so far: on windows-2022 the ARM32 toolchain does install (14.29.30133
-  # and 14.44.35207 both carry lib\arm), every crate compiles for thumbv7a including
-  # a from-source std via -Z build-std, and linking now fails with a specific error
-  # rather than an opaque one:
-  #
-  #     LNK1181: cannot open input file 'bcrypt.lib'
-  #
-  # That is a Windows SDK library. Recent SDKs stopped shipping ARM32 imports, so
-  # closing this needs an older SDK that still carries um\arm, with the linker
-  # pointed at it. Worth knowing before anyone assumes phone support is impossible.
-  #
-  # Still allowed to fail, and nothing depends on it. A DAVE library alone does not
-  # ship phone support; it would only mean calls are possible there at all.
+  # This built and linked on run 31952988853. The long-running LNK1181 on bcrypt.lib
+  # was never a missing SDK - 10.0.22621.0 on the image carries um\arm all along - it
+  # was that Rust's MSVC environment does not put the ARM32 import directories on LIB.
   # ---------------------------------------------------------------------------
-  dave-arm32-probe:
-    name: DAVE ARM32 probe (experimental)
+  dave-arm32:
+    name: DAVE ARM
     runs-on: windows-2022
-    continue-on-error: true
 
     steps:
       - name: Checkout
@@ -148,19 +139,27 @@ jobs:
           $env:LIB = "$sdk\um\arm;$sdk\ucrt\arm;$env:LIB"
           echo "LIB=$env:LIB" >> $env:GITHUB_ENV
 
-      - name: Attempt build
+      - name: Build unicord_dave
         run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
         working-directory: Unicord.Universal/Voice/native/unicord_dave
 
-      - name: Report
-        if: always()
+      - name: Verify architecture
+        working-directory: Unicord.Universal/Voice/native/unicord_dave
         run: |
-          $dll = "Unicord.Universal/Voice/native/unicord_dave/target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll"
-          if (Test-Path $dll) {
-            Write-Host "ARM32 DAVE linked on windows-2022. Calls are possible on Windows 10 Mobile; an ARM package leg becomes worth building."
-          } else {
-            Write-Host "ARM32 DAVE still does not link. Calls cannot work on Windows 10 Mobile and must stay disabled there."
-          }
+          $dll = "target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll"
+          if (-not (Test-Path $dll)) { throw "unicord_dave.dll was not produced for thumbv7a-pc-windows-msvc" }
+          $bytes = [IO.File]::ReadAllBytes($dll)
+          $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
+          $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
+          Write-Host ("machine=0x{0:X4} expected=0x01C4 (ARMNT)" -f $machine)
+          if ($machine -ne 0x01C4) { throw "Wrong PE machine type for ARM" }
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: dave-ARM
+          path: Unicord.Universal/Voice/native/unicord_dave/target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll
+          if-no-files-found: error
 
   # ---------------------------------------------------------------------------
   # App packages. One runner per architecture because Release UWP goes through
@@ -169,7 +168,7 @@ jobs:
   package:
     name: Package ${{ matrix.arch }}
     runs-on: ${{ matrix.os }}
-    needs: dave
+    needs: [dave, dave-arm32]
     timeout-minutes: 180
     # ARM64 is expected to fail until Unicord.Universal.Voice ships a win10-arm64
     # build; see the matrix comment below. Marked non-fatal so x64 and x86 keep
@@ -204,6 +203,15 @@ jobs:
           - arch: ARM64
             os: windows-2022
             rid: win-arm64
+            extra: ''
+          # Windows 10 Mobile. Unlike ARM64 this has everything it needs:
+          # Unicord.Universal.Voice 1.0.2 does publish win10-arm, upstream's csproj
+          # still says AppxBundlePlatforms=arm so ARM was its original target, the
+          # manifest declares Windows.Mobile 10.0.15063, and DAVE now links for
+          # thumbv7a. On windows-2022 for the ARM32 toolchain VS 2026 no longer has.
+          - arch: ARM
+            os: windows-2022
+            rid: win-arm
             extra: ''
 
     steps:
@@ -382,7 +390,7 @@ jobs:
           $arches = Get-ChildItem release -Directory -ErrorAction SilentlyContinue | ForEach-Object { ($_.Name -split '-')[-1] }
           if (-not $arches) { throw "No architecture produced a package." }
           Write-Host "Shipping: $($arches -join ', ')"
-          foreach ($missing in @('x64','x86','ARM64') | Where-Object { $_ -notin $arches }) {
+          foreach ($missing in @('x64','x86','ARM64','ARM') | Where-Object { $_ -notin $arches }) {
             Write-Warning "$missing did not build and is absent from this release."
           }
 
@@ -424,6 +432,7 @@ jobs:
           | Windows 10/11 PC, normal (Intel/AMD) | x64 |
           | Older 32-bit PC | x86 |
           | Windows on ARM (Surface Pro X and similar) | ARM64 |
+          | Windows 10 Mobile phone | ARM |
 
           If no ARM64 folder is present, ARM devices can use x64 on Windows 11 or x86 on
           Windows 10, both of which Windows emulates.
