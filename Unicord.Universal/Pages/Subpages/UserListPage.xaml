@@ -65,12 +65,34 @@
                 <GroupStyle HidesIfEmpty="True">
                     <GroupStyle.HeaderTemplate>
                         <DataTemplate>
-                            <TextBlock
-                                FontSize="14"
-                                FontWeight="Bold"
-                                Text="{Binding Key.Name, FallbackValue=People}"
-                                TextTrimming="CharacterEllipsis"
-                                TextWrapping="NoWrap" />
+                            <Grid Margin="0,12,0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <TextBlock
+                                    FontSize="12"
+                                    FontWeight="SemiBold"
+                                    Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                                    Text="{Binding Key.Name, FallbackValue=People}"
+                                    TextTrimming="CharacterEllipsis"
+                                    TextWrapping="NoWrap" />
+
+                                <TextBlock
+                                    Grid.Column="1"
+                                    Margin="8,0,0,0"
+                                    FontSize="12"
+                                    Foreground="{ThemeResource ApplicationSecondaryForegroundThemeBrush}"
+                                    Text="{Binding Count}" />
+
+                                <Border
+                                    Grid.ColumnSpan="2"
+                                    Height="1"
+                                    Margin="0,0,0,-4"
+                                    VerticalAlignment="Bottom"
+                                    Background="{ThemeResource DividerStrokeColorDefaultBrush}" />
+                            </Grid>
                         </DataTemplate>
                     </GroupStyle.HeaderTemplate>
                 </GroupStyle>
@@ -78,7 +100,7 @@
 
             <ListView.ItemContainerStyle>
                 <Style TargetType="ListViewItem" BasedOn="{StaticResource UnicordListViewItemStyle}">
-                    <Setter Property="Padding" Value="8,4" />
+                    <Setter Property="Padding" Value="8,2" />
                     <Setter Property="Margin" Value="0" />
                     <Setter Property="MinHeight" Value="0" />
                     <Setter Property="VerticalContentAlignment" Value="Stretch" />

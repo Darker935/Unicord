@@ -1,6 +1,7 @@
 ﻿using DSharpPlus;
 using DSharpPlus.Entities;
 using System.Linq;
+using Unicord.Universal.Extensions;
 using Unicord.Universal.Models.Channels;
 using Unicord.Universal.Models.Guild;
 using Unicord.Universal.Services;
@@ -35,7 +36,11 @@ namespace Unicord.Universal.Pages.Subpages
             {
                 if (viewModel.ChannelType is not (ChannelType.Text or ChannelType.Announcement or ChannelType.AnnouncementThread or ChannelType.GuildForum or ChannelType.PublicThread or ChannelType.PrivateThread))
                 {
-                    channelsList.SelectedItem = e.RemovedItems.FirstOrDefault();
+                    // Restoring the previous selection raises SelectionChanged again. Unguarded,
+                    // that second pass saw a text channel in AddedItems and navigated to it, and
+                    // the list scrolled to wherever that channel sits. Clicking a voice channel
+                    // must leave both the open channel and the scroll position alone.
+                    RestoreSelectionWithoutScrolling(e.RemovedItems.FirstOrDefault());
 
                     if (viewModel.ChannelType != ChannelType.Voice)
                         return;
@@ -44,6 +49,24 @@ namespace Unicord.Universal.Pages.Subpages
                 var service = DiscordNavigationService.GetForCurrentView();
                 await service.NavigateAsync(viewModel.Channel);
             }
+        }
+
+        /// <summary>
+        /// Puts the selection back where it was without letting the list move. The selection change
+        /// is suppressed so it cannot re-enter navigation, and the scroll offset is captured and
+        /// reapplied because selecting an item asks the list to bring it into view.
+        /// </summary>
+        private void RestoreSelectionWithoutScrolling(object item)
+        {
+            var scrollViewer = channelsList.FindChild<ScrollViewer>();
+            var offset = scrollViewer?.VerticalOffset;
+
+            _suspend = true;
+            channelsList.SelectedItem = item;
+            _suspend = false;
+
+            if (scrollViewer != null && offset != null && scrollViewer.VerticalOffset != offset.Value)
+                scrollViewer.ChangeView(null, offset.Value, null, true);
         }
 
         private void OnButtonClicked(object sender, RoutedEventArgs e)

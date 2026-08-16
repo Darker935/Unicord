@@ -130,6 +130,12 @@ namespace Unicord.Universal.Models.Channels
             => ReadState.MentionCount == 0 ? -1 : ReadState.MentionCount;
         public double MutedOpacity
             => Muted ? 0.5 : 1.0;
+        /// <summary>
+        /// Row opacity in the channel list. Channels with nothing new are dimmed, unread channels
+        /// stay at full brightness, muted channels stay dimmer than both.
+        /// </summary>
+        public double ChannelListOpacity
+            => Muted ? 0.5 : (Unread ? 1.0 : 0.6);
         public bool HasTopic
             => !string.IsNullOrWhiteSpace(Topic);
 
@@ -196,6 +202,13 @@ namespace Unicord.Universal.Models.Channels
         }
 
         /// <summary>
+        /// Guild channel rows carry unread in the label brightness, so the badge is reserved for
+        /// actual mention counts.
+        /// </summary>
+        public bool ShouldShowMentionBadge
+            => NullableMentionCount != -1;
+
+        /// <summary>
         /// The icon to show in the top left of a channel
         /// </summary>
         public string ChannelIconUrl
@@ -248,7 +261,9 @@ namespace Unicord.Universal.Models.Channels
 
             InvokePropertyChanged(nameof(Unread));
             InvokePropertyChanged(nameof(ShouldShowNotificaitonIndicator));
+            InvokePropertyChanged(nameof(ShouldShowMentionBadge));
             InvokePropertyChanged(nameof(NullableMentionCount));
+            InvokePropertyChanged(nameof(ChannelListOpacity));
         }
 
         protected virtual Task OnChannelUpdated(ChannelUpdateEventArgs e)

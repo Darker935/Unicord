@@ -54,7 +54,7 @@
             SelectionChanged="dmsList_SelectionChanged"
             SingleSelectionFollowsFocus="False"
             ShowsScrollingPlaceholders="True"
-            Padding="0,0,0,68">
+            Padding="0,0,0,4">
             <ListView.ItemsPanel>
                 <ItemsPanelTemplate>
                     <ItemsStackPanel ItemsUpdatingScrollMode="KeepItemsInView" />

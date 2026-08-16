@@ -41,6 +41,12 @@ namespace Unicord.Universal.Models.Guild
             }
         }
 
+        /// <summary>
+        /// Folders follow the same rule as guilds: corner badge for mentions only.
+        /// </summary>
+        public bool ShowMentionBadge
+            => MentionCount > 0;
+
         public bool IsExpanded { get => _isExpanded; set => OnPropertySet(ref _isExpanded, value); }
 
         public ObservableCollection<GuildListViewModel> Children { get; set; }
