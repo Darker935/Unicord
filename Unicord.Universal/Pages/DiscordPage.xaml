@@ -207,13 +207,16 @@
                 <Grid x:Name="sidebarSecondaryGrid"
                       Style="{StaticResource DiscordPage_SidebarSecondaryStyle}"
                       Grid.Column="1">
-                    <Grid x:Name="SidebarContentGrid" Margin="{StaticResource DiscordPage_SecondaryGridMargin}" Padding="0,0,0,68">
+                    <!-- No bottom padding for the user panel here: this is the sidebar list's
+                         viewport, and resizing it mid-scroll resets a virtualised list. The pages
+                         inside pad their own content instead, via ISidebarInsetTarget. -->
+                    <Grid x:Name="SidebarContentGrid" Margin="{StaticResource DiscordPage_SecondaryGridMargin}">
                         <Grid Background="{ThemeResource DiscordPage_SecondaryGrid_Background}"
                               BorderBrush="{ThemeResource DiscordPage_SecondaryGrid_BorderBrush}"
                               BorderThickness="{ThemeResource DiscordPage_SecondaryGrid_BorderThickness}"
                               CornerRadius="{ThemeResource DiscordPage_SecondaryGrid_CornerRadius}"
                               Margin="{ThemeResource DiscordPage_SecondaryGrid_SplitMargin}">
-                            <Frame x:Name="leftSidebarFrame"/>
+                            <Frame x:Name="leftSidebarFrame" Navigated="LeftSidebarFrame_Navigated"/>
                         </Grid>
                     </Grid>
                 </Grid>

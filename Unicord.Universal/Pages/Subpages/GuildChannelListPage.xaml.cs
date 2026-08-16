@@ -13,15 +13,25 @@ using Windows.UI.Xaml.Navigation;
 
 namespace Unicord.Universal.Pages.Subpages
 {
-    public sealed partial class GuildChannelListPage : Page
+    public sealed partial class GuildChannelListPage : Page, ISidebarInsetTarget
     {
         private bool _suspend = false;
         public DiscordGuild Guild { get; private set; }
 
+        private readonly Thickness _listPadding;
+
         public GuildChannelListPage()
         {
             InitializeComponent();
+
+            // the list's own tail, kept so the reservation adds to it rather than replacing it
+            _listPadding = channelsList.Padding;
         }
+
+        /// <inheritdoc/>
+        public void SetBottomInset(double inset)
+            => channelsList.Padding = new Thickness(
+                _listPadding.Left, _listPadding.Top, _listPadding.Right, _listPadding.Bottom + inset);
 
         protected override void OnNavigatedTo(NavigationEventArgs e)
         {

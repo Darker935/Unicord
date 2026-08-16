@@ -39,6 +39,7 @@ namespace Unicord.Universal.Pages
         private MainPageArgs _args;
         private bool _loaded;
         private bool _ready;
+        private double _sidebarInset;
 
         internal DiscordPageViewModel Model { get; }
         internal bool IsWindowVisible { get; private set; }
@@ -64,11 +65,27 @@ namespace Unicord.Universal.Pages
         private void UserPanel_SizeChanged(object sender, SizeChangedEventArgs e)
         {
             // the card's own margin sits outside its size
-            var reserved = e.NewSize.Height + UserPanel.Margin.Top + UserPanel.Margin.Bottom;
+            _sidebarInset = e.NewSize.Height + UserPanel.Margin.Top + UserPanel.Margin.Bottom;
 
-            GuildRailPanel.Padding = new Thickness(0, 0, 0, reserved);
-            SidebarContentGrid.Padding = new Thickness(0, 0, 0, reserved);
+            // the rail's panel is inside its ScrollViewer, so padding it grows the content
+            GuildRailPanel.Padding = new Thickness(0, 0, 0, _sidebarInset);
+            ApplySidebarInset();
         }
+
+        /// <summary>
+        /// Hands the reservation to the sidebar page so it can pad its own list. It must not be
+        /// padding on the frame's container: that is the list's viewport, and resizing a viewport
+        /// mid-scroll makes a virtualised list re-realise from the top, which is what threw the
+        /// channel list back to the first channel every time a call started.
+        /// </summary>
+        private void ApplySidebarInset()
+        {
+            if (LeftSidebarFrame?.Content is ISidebarInsetTarget target)
+                target.SetBottomInset(_sidebarInset);
+        }
+
+        private void LeftSidebarFrame_Navigated(object sender, NavigationEventArgs e)
+            => ApplySidebarInset();
 
         private void Current_VisibilityChanged(object sender, VisibilityChangedEventArgs e)
         {
@@ -120,8 +137,13 @@ namespace Unicord.Universal.Pages
                 SplitPaneService.GetForCurrentView()
                     .ToggleLeftPane();
 
-                LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
-                MainFrame.Navigate(typeof(FriendsPage));
+                // What to show first is decided once READY has landed, in LoadAsync. This used to
+                // open the DM list and the friends page here as well, and the two run off unrelated
+                // triggers - the XAML Loaded event and the gateway's READY - with no order between
+                // them. When READY won, LoadAsync restored the last channel, selected its guild and
+                // navigated the sidebar, then awaited the guild sync; this ran in that gap and put
+                // the DM list back over the top. The result was a DM sidebar next to a guild
+                // channel, with that guild still selected in the rail.
             }
             catch (Exception ex)
             {
@@ -148,8 +170,8 @@ namespace Unicord.Universal.Pages
                 {
                     Analytics.TrackEvent("DiscordPage_NavigateToFriendsPage");
                     Model.IsFriendsSelected = true;
-                    //LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
-                    //MainFrame.Navigate(typeof(FriendsPage));
+                    LeftSidebarFrame.Navigate(typeof(DMChannelsPage));
+                    MainFrame.Navigate(typeof(FriendsPage));
                 }
 
                 var possibleConnection = await VoiceConnectionModel.FindExistingConnectionAsync();
