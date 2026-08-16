@@ -62,9 +62,6 @@
 
                     <converters:DateTimeConverter x:Key="DateTimeConverter"/>
                     <converters:PresenceTextConverter x:Key="PresenceTextConverter"/>
-                    <converters:VoicePingArcOpacityConverter x:Key="VoicePingArcOpacityConverter"/>
-                    <converters:VoicePingBrushConverter x:Key="VoicePingBrushConverter"/>
-                    <converters:VoicePingConverter x:Key="VoicePingConverter"/>
                     <converters:HideOnNullConverter x:Key="HideOnNullConverter"/>
                     <converters:BoolOpacityConverter x:Key="BoolOpacityConverter"/>
                     <converters:BoolVisibilityConverter x:Key="BoolVisibilityConverter"/>
@@ -74,6 +71,9 @@
                     <converters:ThumbnailImageConverter x:Key="ThumbnailImageConverter"/>
                     <converters:FileSizeConverter x:Key="FileSizeConverter"/>
                     <converters:TitleCaseConverter x:Key="TitleCaseConverter"/>
+                    <converters:VoicePingArcOpacityConverter x:Key="VoicePingArcOpacityConverter"/>
+                    <converters:VoicePingBrushConverter x:Key="VoicePingBrushConverter"/>
+                    <converters:VoicePingConverter x:Key="VoicePingConverter"/>
                     <converters:UriConverter x:Key="UriConverter"/>
 
                     <commands:EditChannelCommand x:Key="EditChannelCommand"/>

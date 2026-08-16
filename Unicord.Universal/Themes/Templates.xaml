@@ -216,7 +216,7 @@
                 <Ellipse Width="22"
                          Height="22"
                          StrokeThickness="2"
-                         Stroke="{ThemeResource SpeakingRingBrush}"
+                         Stroke="{ThemeResource VoicePingGoodBrush}"
                          Visibility="{x:Bind IsSpeaking, Mode=OneWay, Converter={StaticResource BoolVisibilityConverter}}"/>
             </Grid>
             <TextBlock Grid.Column="1" Text="{x:Bind DisplayName}" FontSize="13" TextTrimming="CharacterEllipsis" VerticalAlignment="Center"/>

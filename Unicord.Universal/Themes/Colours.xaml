@@ -70,9 +70,13 @@
     <Color x:Key="DangerForegroundColor">#FFFFFFFF</Color>
 
     <Color x:Key="WarningColour">#FFFFC107</Color>
-    
-    <!-- ring drawn around a voice member's avatar while they are talking -->
-    <SolidColorBrush x:Key="SpeakingRingBrush" Color="{ThemeResource SuccessColour}"/>
+
+    <SolidColorBrush x:Key="DangerBrush" Color="{ThemeResource DangerColour}"/>
+
+    <!-- voice signal indicator, keyed off UDP ping. See VoicePingConverters. -->
+    <SolidColorBrush x:Key="VoicePingGoodBrush" Color="{ThemeResource SuccessColour}"/>
+    <SolidColorBrush x:Key="VoicePingFairBrush" Color="{ThemeResource WarningColour}"/>
+    <SolidColorBrush x:Key="VoicePingPoorBrush" Color="{ThemeResource DangerColour}"/>
 
     <!-- src: https://discordapp.com/branding -->
     <Color x:Key="DiscordBlurpleColour">#FF7289DA</Color>
@@ -88,10 +92,5 @@
 
     <SolidColorBrush x:Key="MentionBrush" Color="{ThemeResource SystemAccentColor}" Opacity="0.1"/>
     <SolidColorBrush x:Key="TransparentBrush" Color="Transparent"/>
-
-    <!-- voice signal indicator, keyed off UDP ping. See VoicePingConverters. -->
-    <SolidColorBrush x:Key="VoicePingGoodBrush" Color="{ThemeResource SuccessColour}"/>
-    <SolidColorBrush x:Key="VoicePingFairBrush" Color="{ThemeResource WarningColour}"/>
-    <SolidColorBrush x:Key="VoicePingPoorBrush" Color="{ThemeResource DangerColour}"/>
 
 </ResourceDictionary>

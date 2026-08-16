@@ -366,9 +366,11 @@
     <Compile Include="Converters\Messages\ComponentTemplateSelector.cs" />
     <Compile Include="Converters\MessageTemplateSelector.cs" />
     <Compile Include="Converters\PresenceConverters.cs" />
-    <Compile Include="Converters\VoicePingConverters.cs" />
     <Compile Include="Converters\ThumbnailImageConverter.cs" />
     <Compile Include="Converters\TitleCaseConverter.cs" />
+    <Compile Include="Converters\VoicePingConverters.cs" />
+    <Compile Include="Models\Voice\VoiceSpeakingTracker.cs" />
+    <Compile Include="Voice\VoiceSpeakingEventArgs.cs" />
     <Compile Include="Converters\TruncateConverter.cs" />
     <Compile Include="Converters\UriConverter.cs" />
     <Compile Include="Dialogs\BanDialog.xaml.cs">
@@ -411,7 +413,6 @@
     <Compile Include="MainPage.xaml.cs">
       <DependentUpon>MainPage.xaml</DependentUpon>
     </Compile>
-    <Compile Include="Misc\DiagnosticLog.cs" />
     <Compile Include="Misc\Emoji.cs" />
     <Compile Include="Misc\ListViewBehaviour.cs" />
     <Compile Include="Misc\Logger.cs" />
@@ -469,15 +470,14 @@
     <Compile Include="Models\Voice\Transport\VoiceDispatch.cs" />
     <Compile Include="Models\Voice\Transport\VoiceStateUpdatePayload.cs" />
     <Compile Include="Models\Voice\VoiceConnectionModel.cs" />
-    <Compile Include="Models\Voice\VoiceMemberViewModel.cs" />
-    <Compile Include="Models\Voice\VoiceSpeakingTracker.cs" />
     <Compile Include="Voice\DaveNative.cs" />
     <Compile Include="Voice\DiscordVoiceSession.cs" />
     <Compile Include="Voice\VoiceAesGcm.cs" />
+    <Compile Include="Voice\VoiceQualityOptions.cs" />
+    <Compile Include="Models\Voice\VoiceMemberViewModel.cs" />
     <Compile Include="Voice\VoiceAudioEngine.cs" />
     <Compile Include="Voice\VoicePcmPool.cs" />
-    <Compile Include="Voice\VoiceQualityOptions.cs" />
-    <Compile Include="Voice\VoiceSpeakingEventArgs.cs" />
+    <Compile Include="Misc\DiagnosticLog.cs" />
     <Content Include="Voice\native\unicord_dave.dll">
       <Link>unicord_dave.dll</Link>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
@@ -742,6 +742,9 @@
     </PackageReference>
     <PackageReference Include="TenMica">
       <Version>1.0.0-beta</Version>
+    </PackageReference>
+    <PackageReference Include="Concentus">
+      <Version>1.1.7</Version>
     </PackageReference>
     <PackageReference Include="Unicord.Universal.Voice">
       <Version>1.0.2</Version>
