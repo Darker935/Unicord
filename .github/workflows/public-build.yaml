@@ -44,6 +44,8 @@ jobs:
             target: x86_64-pc-windows-msvc
           - arch: x86
             target: i686-pc-windows-msvc
+          - arch: ARM64
+            target: aarch64-pc-windows-msvc
 
     steps:
       - name: Checkout
@@ -64,7 +66,7 @@ jobs:
           $bytes = [IO.File]::ReadAllBytes($dll)
           $peOffset = [BitConverter]::ToInt32($bytes, 0x3C)
           $machine = [BitConverter]::ToUInt16($bytes, $peOffset + 4)
-          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C }['${{ matrix.arch }}']
+          $expected = @{ 'x64' = 0x8664; 'x86' = 0x014C; 'ARM64' = 0xAA64 }['${{ matrix.arch }}']
           Write-Host ("machine=0x{0:X4} expected=0x{1:X4}" -f $machine, $expected)
           if ($machine -ne $expected) { throw "Wrong PE machine type for ${{ matrix.arch }}" }
 
@@ -76,20 +78,64 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows 10 Mobile (ARM32) was probed on runs 31938305956 and 31938786322 and
-  # is settled: not possible on a hosted runner, and not for a Rust reason.
+  # Windows 10 Mobile probe, retried on windows-2022.
   #
-  # Every crate compiled for thumbv7a-pc-windows-msvc, including a from-source std
-  # via -Z build-std. Only link.exe failed, with no diagnostic. windows-latest is
-  # Windows Server 2025 with Visual Studio 2026, and VS 2026 removed the ARM32
-  # toolchain outright, so Microsoft.VisualStudio.Component.VC.Tools.ARM does not
-  # exist to install - the installer returned 0 having done nothing. Linking ARM32
-  # needs the VS 2022 v143 build tools on an older image.
+  # The earlier probes on windows-latest compiled every crate for
+  # thumbv7a-pc-windows-msvc, including a from-source std via -Z build-std, and died
+  # only inside link.exe with no diagnostic. That is explained: Visual Studio 2026
+  # removed the ARM32 toolchain outright, so VC.Tools.ARM does not exist there to
+  # install and the installer returned 0 having done nothing. Microsoft's guidance is
+  # that ARM32 targeting continues under the Visual Studio 2022 v143 tools, which is
+  # what windows-2022 carries - so the link step deserves one attempt on that image.
   #
-  # So calls cannot work on Windows 10 Mobile from CI builds, and call entry points
-  # must be gated on unicord_dave.dll actually loading rather than on OS version.
-  # The probe job is removed rather than left failing on every run.
+  # Still allowed to fail, and nothing depends on it. A DAVE library alone does not
+  # ship phone support; it would only mean calls are possible there at all.
   # ---------------------------------------------------------------------------
+  dave-arm32-probe:
+    name: DAVE ARM32 probe (experimental)
+    runs-on: windows-2022
+    continue-on-error: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nightly with rust-src
+        run: |
+          rustup toolchain install nightly
+          rustup component add rust-src --toolchain nightly
+
+      - name: Install ARM32 MSVC build tools
+        continue-on-error: true
+        run: |
+          $installer = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer"
+          $vsPath = & "$installer\vswhere.exe" -latest -property installationPath
+          $p = Start-Process -FilePath "$installer\vs_installer.exe" -Wait -PassThru -ArgumentList @(
+            'modify', '--installPath', "`"$vsPath`"",
+            '--add', 'Microsoft.VisualStudio.Component.VC.Tools.ARM',
+            '--quiet', '--norestart', '--nocache'
+          )
+          Write-Host "Installer exit code $($p.ExitCode)"
+
+          # vs_installer also returns 0 for a component that does not exist, which is how
+          # the VS 2026 attempts looked successful while doing nothing.
+          $armLibs = Get-ChildItem "$vsPath\VC\Tools\MSVC\*\lib\arm" -Directory -ErrorAction SilentlyContinue
+          if ($armLibs) { $armLibs | ForEach-Object { Write-Host "Found $_" } }
+          else { Write-Warning "No ARM32 libraries under $vsPath; the link step will fail again." }
+
+      - name: Attempt build
+        run: cargo +nightly build --release -Z build-std=std,panic_abort --target thumbv7a-pc-windows-msvc
+        working-directory: Unicord.Universal/Voice/native/unicord_dave
+
+      - name: Report
+        if: always()
+        run: |
+          $dll = "Unicord.Universal/Voice/native/unicord_dave/target/thumbv7a-pc-windows-msvc/release/unicord_dave.dll"
+          if (Test-Path $dll) {
+            Write-Host "ARM32 DAVE linked on windows-2022. Calls are possible on Windows 10 Mobile; an ARM package leg becomes worth building."
+          } else {
+            Write-Host "ARM32 DAVE still does not link. Calls cannot work on Windows 10 Mobile and must stay disabled there."
+          }
 
   # ---------------------------------------------------------------------------
   # App packages. One runner per architecture because Release UWP goes through
@@ -97,7 +143,7 @@ jobs:
   # ---------------------------------------------------------------------------
   package:
     name: Package ${{ matrix.arch }}
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     needs: dave
     timeout-minutes: 180
     strategy:
@@ -105,32 +151,27 @@ jobs:
       matrix:
         include:
           - arch: x64
+            os: windows-latest
             rid: win-x64
             extra: ''
           - arch: x86
+            os: windows-latest
             rid: win-x86
             extra: ''
-          # ARM64 cannot go through .NET Native. nutc_driver exits 1 with no diagnostic
-          # (ILT0005) and both candidate causes are eliminated: the ARM64 v143 libraries
-          # are present and asserted (runs 31940067480, 31941218858), and clearing the
-          # project's /d2threads8 IlcParameters changed nothing. .NET Native 2.2.12 is
-          # long unmaintained and its ARM64 support was always the weakest leg, so this
-          # platform builds against the CoreCLR-backed UWP runtime instead - the same
-          # configuration Debug builds use. Startup is slower; the package is real.
-          # Turning .NET Native off also removes the RuntimeIdentifier it was supplying
-          # implicitly, and the project declares no RuntimeIdentifiers of its own, so
-          # packaging asks for win10-arm64 by name. It has to be set for restore too.
-          # ARM64 is deliberately absent. It cannot be packaged on a hosted runner with the
-          # tooling windows-latest carries, established over runs 31940067480 through
-          # 31943446872: .NET Native's nutc_driver exits 1 with no diagnostic (ILT0005)
-          # with the v143 ARM64 libraries present and asserted and with the project's
-          # /d2threads8 cleared, and turning .NET Native off only trades that for the UWP
-          # CoreRuntime SDK being unresolvable (MSB4044, WireUpCoreRuntime).
-          #
-          # Losing the platform costs performance rather than reach: Windows 11 on ARM
-          # emulates x64 and Windows 10 on ARM emulates x86, so those devices install and
-          # run one of the packages built here. Revisit on a runner carrying the full UWP
-          # toolchain, where ARM64 could build the supported .NET Native way.
+          # ARM64 packages on windows-2022, not windows-latest. DAVE for this platform
+          # always cross-compiled cleanly; what could not be done was packaging the app
+          # around it. windows-latest is Windows Server 2025 with Visual Studio 2026,
+          # where .NET Native's nutc_driver exits 1 with no diagnostic (ILT0005) even with
+          # the v143 ARM64 libraries installed and asserted and the project's /d2threads8
+          # cleared, and disabling .NET Native only trades that for an unresolvable UWP
+          # CoreRuntime SDK (MSB4044). Runs 31940067480 through 31943446872. windows-2022
+          # carries Visual Studio 2022, whose UWP workload and ARM64 v143 tools are the
+          # combination this project was actually built against, so ARM64 goes back
+          # through the standard .NET Native path there with no overrides.
+          - arch: ARM64
+            os: windows-2022
+            rid: win-arm64
+            extra: ''
 
     steps:
       - name: Checkout
@@ -308,7 +349,7 @@ jobs:
           $arches = Get-ChildItem release -Directory -ErrorAction SilentlyContinue | ForEach-Object { ($_.Name -split '-')[-1] }
           if (-not $arches) { throw "No architecture produced a package." }
           Write-Host "Shipping: $($arches -join ', ')"
-          foreach ($missing in @('x64','x86') | Where-Object { $_ -notin $arches }) {
+          foreach ($missing in @('x64','x86','ARM64') | Where-Object { $_ -notin $arches }) {
             Write-Warning "$missing did not build and is absent from this release."
           }
 
@@ -349,8 +390,10 @@ jobs:
           |---|---|
           | Windows 10/11 PC, normal (Intel/AMD) | x64 |
           | Older 32-bit PC | x86 |
-          | Windows 11 on ARM (Surface Pro X and similar) | x64, which Windows emulates |
-          | Windows 10 on ARM | x86, which Windows emulates |
+          | Windows on ARM (Surface Pro X and similar) | ARM64 |
+
+          If no ARM64 folder is present, ARM devices can use x64 on Windows 11 or x86 on
+          Windows 10, both of which Windows emulates.
 
           Open that folder and run:
 
