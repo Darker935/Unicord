@@ -108,10 +108,18 @@ jobs:
         include:
           - arch: x64
             rid: win-x64
+            extra: ''
           - arch: x86
             rid: win-x86
+            extra: ''
+          # The project passes /d2threads8 to nutc through IlcParameters. Upstream only
+          # ever built arm, x86 and x64, so that flag has never been exercised on ARM64,
+          # and it is the one non-default input to the compiler that fails there. Cleared
+          # here to test that; the ARM64 libraries are demonstrably present now, so the
+          # runner-image toolchain gap is ruled out.
           - arch: ARM64
             rid: win-arm64
+            extra: '/p:IlcParameters='
 
     steps:
       - name: Checkout
@@ -230,6 +238,9 @@ jobs:
             '/p:AppxPackageSigningEnabled=false'
           }
 
+          $extra = '${{ matrix.extra }}'
+          if ($extra) { $signing += $extra }
+
           # MSBuild wants a trailing separator here, and resolves a relative value against
           # the project directory rather than the workspace, so it is passed absolute.
           $outDir = "$env:GITHUB_WORKSPACE\out\"
@@ -265,6 +276,9 @@ jobs:
     name: Collect release
     runs-on: windows-latest
     needs: package
+    # Runs on whatever architectures succeeded. One platform failing should not
+    # withhold a release the others have already earned.
+    if: always()
 
     steps:
       - name: Download packages
@@ -272,6 +286,15 @@ jobs:
         with:
           pattern: unicord-*
           path: release
+
+      - name: Report contents
+        run: |
+          $arches = Get-ChildItem release -Directory -ErrorAction SilentlyContinue | ForEach-Object { ($_.Name -split '-')[-1] }
+          if (-not $arches) { throw "No architecture produced a package." }
+          Write-Host "Shipping: $($arches -join ', ')"
+          foreach ($missing in @('x64','x86','ARM64') | Where-Object { $_ -notin $arches }) {
+            Write-Warning "$missing did not build and is absent from this release."
+          }
 
       # Public half of the signing certificate only. The private key never leaves
       # the secret, and a .cer cannot be used to sign anything.
