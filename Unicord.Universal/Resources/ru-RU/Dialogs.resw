@@ -235,7 +235,7 @@
     <value>Загрузить из файла</value>
   </data>
   <data name="TokenSubtitle.Text" xml:space="preserve">
-    <value>Не знаете, где искать? [Нажмите здесь для руководства.](https://example.com/)</value>
+    <value>Не знаете, где искать? [Нажмите здесь для руководства.](https://telegra.ph/How-to-get-Discord-token-08-16)</value>
   </data>
   <data name="TokenTitle.Text" xml:space="preserve">
     <value>Введите ваш токен Discord</value>

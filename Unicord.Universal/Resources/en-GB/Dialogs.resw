@@ -235,7 +235,7 @@
     <value>Load from File</value>
   </data>
   <data name="TokenSubtitle.Text" xml:space="preserve">
-    <value>Don't know where to look? [Click here for a guide.](https://example.com/)</value>
+    <value>Don't know where to look? [Click here for a guide.](https://telegra.ph/How-to-get-Discord-token-08-16)</value>
   </data>
   <data name="TokenTitle.Text" xml:space="preserve">
     <value>Enter your Discord Token</value>

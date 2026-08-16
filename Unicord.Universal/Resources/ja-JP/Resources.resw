@@ -130,7 +130,7 @@
     <value>Unicord</value>
   </data>
   <data name="DevAppDisplayName" xml:space="preserve">
-    <value>Unicord Canary</value>
+    <value>Unicord Dev</value>
   </data>
   <data name="LoginFailedDialogMessage" xml:space="preserve">
     <value>ログインする際に問題が発生しました。 再度お試しください。</value>
