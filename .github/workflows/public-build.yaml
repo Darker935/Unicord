@@ -78,15 +78,19 @@ jobs:
           if-no-files-found: error
 
   # ---------------------------------------------------------------------------
-  # Windows 10 Mobile probe, retried on windows-2022.
+  # Windows 10 Mobile probe, on windows-2022 because Visual Studio 2026 removed the
+  # ARM32 toolchain and VC.Tools.ARM cannot be installed there at all.
   #
-  # The earlier probes on windows-latest compiled every crate for
-  # thumbv7a-pc-windows-msvc, including a from-source std via -Z build-std, and died
-  # only inside link.exe with no diagnostic. That is explained: Visual Studio 2026
-  # removed the ARM32 toolchain outright, so VC.Tools.ARM does not exist there to
-  # install and the installer returned 0 having done nothing. Microsoft's guidance is
-  # that ARM32 targeting continues under the Visual Studio 2022 v143 tools, which is
-  # what windows-2022 carries - so the link step deserves one attempt on that image.
+  # Progress so far: on windows-2022 the ARM32 toolchain does install (14.29.30133
+  # and 14.44.35207 both carry lib\arm), every crate compiles for thumbv7a including
+  # a from-source std via -Z build-std, and linking now fails with a specific error
+  # rather than an opaque one:
+  #
+  #     LNK1181: cannot open input file 'bcrypt.lib'
+  #
+  # That is a Windows SDK library. Recent SDKs stopped shipping ARM32 imports, so
+  # closing this needs an older SDK that still carries um\arm, with the linker
+  # pointed at it. Worth knowing before anyone assumes phone support is impossible.
   #
   # Still allowed to fail, and nothing depends on it. A DAVE library alone does not
   # ship phone support; it would only mean calls are possible there at all.
@@ -146,6 +150,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     needs: dave
     timeout-minutes: 180
+    # ARM64 is expected to fail until Unicord.Universal.Voice ships a win10-arm64
+    # build; see the matrix comment below. Marked non-fatal so x64 and x86 keep
+    # publishing releases meanwhile, and so ARM64 turns green on its own once the
+    # package lands rather than needing this workflow touched again.
+    continue-on-error: ${{ matrix.arch == 'ARM64' }}
     strategy:
       fail-fast: false
       matrix:
@@ -158,16 +167,19 @@ jobs:
             os: windows-latest
             rid: win-x86
             extra: ''
-          # ARM64 packages on windows-2022, not windows-latest. DAVE for this platform
-          # always cross-compiled cleanly; what could not be done was packaging the app
-          # around it. windows-latest is Windows Server 2025 with Visual Studio 2026,
-          # where .NET Native's nutc_driver exits 1 with no diagnostic (ILT0005) even with
-          # the v143 ARM64 libraries installed and asserted and the project's /d2threads8
-          # cleared, and disabling .NET Native only trades that for an unresolvable UWP
-          # CoreRuntime SDK (MSB4044). Runs 31940067480 through 31943446872. windows-2022
-          # carries Visual Studio 2022, whose UWP workload and ARM64 v143 tools are the
-          # combination this project was actually built against, so ARM64 goes back
-          # through the standard .NET Native path there with no overrides.
+          # ARM64 is blocked on a dependency, not on this workflow. Unicord.Universal.Voice
+          # 1.0.2 (Unicord.Universal.csproj:749) is a native WinRT component publishing
+          # only win10-arm, win10-x64 and win10-x86, so .NET Native has no ARM64
+          # implementation for its winmd and nutc_driver exits 1 with no diagnostic
+          # (ILT0005). That is also the APPX1707 warning in every log, and why upstream
+          # only ever set AppxBundlePlatforms=arm - the package's RID set was the app's
+          # architecture ceiling.
+          #
+          # The environment was ruled out across runs 31940067480 to 31947288840: the
+          # v143 ARM64 libraries installed and asserted, /d2threads8 cleared, and the same
+          # failure on windows-latest (VS 2026) and windows-2022 (VS 2022). An ARM64 build
+          # of that component is being produced separately; this leg stays here, on the
+          # VS 2022 image the project was built against, so it goes green when that lands.
           - arch: ARM64
             os: windows-2022
             rid: win-arm64
