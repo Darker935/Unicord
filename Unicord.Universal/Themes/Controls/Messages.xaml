@@ -796,6 +796,9 @@
                      ContextFlyout="{StaticResource MessageContextFlyout}"
                      Background="Transparent"
                      BorderBrush="Transparent"
+                     PointerEntered="MessageRoot_PointerEntered"
+                     PointerExited="MessageRoot_PointerExited"
+                     DataContextChanged="MessageRoot_DataContextChanged"
                      BorderThickness="4,0,0,0">
                 <VisualStateManager.VisualStateGroups>
                     <VisualStateGroup x:Name="Mentions">
@@ -824,8 +827,9 @@
                                 <StateTrigger x:Name="DefaultSizeTrigger" IsActive="{x:Bind converters:Static.Is(State, messages:MessageViewModelState.Default), Mode=OneWay}"/>
                             </VisualState.StateTriggers>
                             <VisualState.Setters>
-                                <Setter Target="MainBorder.Padding" Value="8,8,16,0"/>
+                                <Setter Target="MainBorder.Padding" Value="12,8,16,0"/>
                                 <Setter Target="MainBorder.Margin" Value="0,0,0,0"/>
+                                <Setter Target="HoverLayer.Margin" Value="-12,-8,-16,0"/>
                             </VisualState.Setters>
                         </VisualState>
                         <VisualState x:Name="NormalState">
@@ -833,8 +837,9 @@
                                 <StateTrigger x:Name="NormalSizeTrigger" IsActive="{x:Bind converters:Static.Is(State, messages:MessageViewModelState.Normal), Mode=OneWay}"/>
                             </VisualState.StateTriggers>
                             <VisualState.Setters>
-                                <Setter Target="MainBorder.Padding" Value="8,8,16,0"/>
+                                <Setter Target="MainBorder.Padding" Value="12,8,16,0"/>
                                 <Setter Target="MainBorder.Margin" Value="0,12,0,0"/>
+                                <Setter Target="HoverLayer.Margin" Value="-12,-8,-16,0"/>
                             </VisualState.Setters>
                         </VisualState>
                         <VisualState x:Name="CollapsedState">
@@ -842,8 +847,9 @@
                                 <StateTrigger x:Name="CollapsedSizeTrigger" IsActive="{x:Bind converters:Static.Is(State, messages:MessageViewModelState.Collapsed), Mode=OneWay}"/>
                             </VisualState.StateTriggers>
                             <VisualState.Setters>
-                                <Setter Target="MainBorder.Padding" Value="8,2,16,0"/>
+                                <Setter Target="MainBorder.Padding" Value="12,2,16,0"/>
                                 <Setter Target="MainBorder.Margin" Value="0,0,0,0"/>
+                                <Setter Target="HoverLayer.Margin" Value="-12,-2,-16,0"/>
                             </VisualState.Setters>
                         </VisualState>
                         <VisualState x:Name="EditingState">
@@ -851,31 +857,53 @@
                                 <StateTrigger x:Name="EditingSizeTrigger" IsActive="{x:Bind converters:Static.Is(State, messages:MessageViewModelState.Editing), Mode=OneWay}"/>
                             </VisualState.StateTriggers>
                             <VisualState.Setters>
-                                <Setter Target="MainBorder.Padding" Value="8,8,16,0"/>
+                                <Setter Target="MainBorder.Padding" Value="12,8,16,0"/>
                                 <Setter Target="MainBorder.Margin" Value="0,12,0,0"/>
                             </VisualState.Setters>
                         </VisualState>
                     </VisualStateGroup>
                 </VisualStateManager.VisualStateGroups>
 
+                <!-- hover tint, first child so it paints behind the message and never eats input -->
+                <Border x:Name="HoverLayer"
+                        Background="{ThemeResource ListViewItemBackgroundPointerOver}"
+                        Opacity="0"
+                        Margin="-12,-8,-16,0"
+                        IsHitTestVisible="False"/>
+
                 <Grid x:Name="RootGrid">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>                    
+                    </Grid.RowDefinitions>
 
                     <Grid x:Name="ReferencedMessageContainer"
                           x:Load="{x:Bind converters:Static.NotNull(ReferencedMessage)}"
                           x:Phase="5"
-                          Margin="56,-8,0,4" >
+                          Margin="0,-8,0,4" >
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="52"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
 
-                        <TextBlock Text="&#xE97A;" Margin="0,0,4,0" VerticalAlignment="Center" FontFamily="{StaticResource SymbolThemeFontFamily}" Foreground="{ThemeResource SystemControlForegroundAccentBrush}"/>
+                        <!-- elbow spine: drops into the avatar column and turns right into the quoted
+                             row. Accent whenever the quoted message is yours, ping or not; whether
+                             the reply actually pinged you is shown by the mention highlight. -->
+                        <Border x:Name="ReplySpine"
+                                x:Load="{x:Bind converters:Static.Not(ReferencedMessage.Author.IsCurrent)}"
+                                Margin="18,9,0,-10"
+                                BorderThickness="2,2,0,0"
+                                CornerRadius="8,0,0,0"
+                                BorderBrush="{ThemeResource DividerStrokeColorDefaultBrush}"/>
+
+                        <Border x:Name="ReplySpineAccent"
+                                x:Load="{x:Bind ReferencedMessage.Author.IsCurrent}"
+                                Margin="18,9,0,-10"
+                                BorderThickness="2,2,0,0"
+                                CornerRadius="8,0,0,0"
+                                BorderBrush="{ThemeResource SystemControlForegroundAccentBrush}"/>
 
                         <Ellipse x:Name="ReplyAvatarContainer"
                                         Width="16"
@@ -912,15 +940,16 @@
 
                     <Grid Grid.Row="2">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="48"/>
+                            <ColumnDefinition Width="36"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                         <Ellipse x:Name="ImageContainer"
-                                 x:Load="{x:Bind converters:Static.IsNot(State, messages:MessageViewModelState.Collapsed),Mode=OneWay}"   
+                                 x:Load="{x:Bind converters:Static.IsNot(State, messages:MessageViewModelState.Collapsed),Mode=OneWay}"
                                  DataContextChanged="ImageContainer_DataContextChanged"
                                  Width="36"
                                  Height="36"
+                                 HorizontalAlignment="Left"
                                  VerticalAlignment="Top">
                             <Ellipse.Fill>
                                 <ImageBrush x:Name="ProfileImageBrush">
@@ -934,7 +963,7 @@
                             </Ellipse.Fill>
                         </Ellipse>
 
-                        <Grid x:Name="MessageContent" Grid.Column="1" Margin="8,0,0,0">
+                        <Grid x:Name="MessageContent" Grid.Column="1" Margin="16,0,0,0">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -953,14 +982,20 @@
                                            Opacity="0.4"/>
                             </StackPanel>
 
+                            <!-- Left, not Stretch: a stretched text control claims the whole row, so
+                                 the pointer showed the text I-beam over empty space beside a short
+                                 message and a right click there opened its "Select all" menu instead
+                                 of the message's. It still wraps at the column width. -->
                             <controls:MarkdownTextBlock x:Name="Markdown"
-                                                        x:Load="{x:Bind converters:Static.IsNot(State, messages:MessageViewModelState.Editing),Mode=OneWay}"   
+                                                        HorizontalAlignment="Left"
+                                                        x:Load="{x:Bind converters:Static.IsNot(State, messages:MessageViewModelState.Editing),Mode=OneWay}"
                                                         Grid.Row="1"
                                                         Channel="{x:Bind Channel.Channel}"
-                                                        Text="{x:Bind Content}" 
+                                                        Text="{x:Bind Content}"
                                                         AllowHugeEmoji="True"
-                                                        IsTextSelectionEnabled="True" 
-                                                        WrapCodeBlock="True" 
+                                                        IsTextSelectionEnabled="True"
+                                                        WrapCodeBlock="True"
+                                                        ContextFlyout="{StaticResource MessageContextFlyout}"
                                                         Margin="0,0,2,0" />
 
                             <ContentControl x:Name="MessageEditTools" 

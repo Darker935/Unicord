@@ -123,7 +123,45 @@ namespace Unicord.Universal.Models.Messages
         public DateTimeOffset Timestamp
             => Message.Timestamp;
         public string Content
-            => Message.Content;
+            => ShouldHideBareMediaUrl() ? string.Empty : Message.Content;
+
+        /// <summary>
+        /// Other clients drop a message's text when the text is nothing but the link that produced
+        /// the message's own media. A link with anything else around it is left alone.
+        /// </summary>
+        private bool ShouldHideBareMediaUrl()
+        {
+            var content = Message.Content?.Trim();
+            if (string.IsNullOrEmpty(content) || content.Any(char.IsWhiteSpace))
+                return false;
+
+            if (!Uri.TryCreate(content, UriKind.Absolute, out _))
+                return false;
+
+            if (Message.Attachments != null &&
+                Message.Attachments.Any(a => IsSameResource(content, a.Url) || IsSameResource(content, a.ProxyUrl)))
+                return true;
+
+            return Message.Embeds != null &&
+                Message.Embeds.Any(e => e.Type is "image" or "gifv" or "video" &&
+                                        (IsSameResource(content, e.Url?.ToString()) ||
+                                         IsSameResource(content, e.Thumbnail?.Url?.ToString())));
+        }
+
+        // CDN links pick up signing query strings, so compare the path only.
+        private static bool IsSameResource(string content, string url)
+        {
+            if (string.IsNullOrEmpty(url))
+                return false;
+
+            static string WithoutQuery(string value)
+            {
+                var index = value.IndexOf('?');
+                return index == -1 ? value : value.Substring(0, index);
+            }
+
+            return string.Equals(WithoutQuery(url), WithoutQuery(content), StringComparison.OrdinalIgnoreCase);
+        }
         public bool IsEdited
             => Message.IsEdited;
         public bool IsSystemMessage
