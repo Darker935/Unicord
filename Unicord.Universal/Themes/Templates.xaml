@@ -229,7 +229,7 @@
                           Visibility="{x:Bind IsVideo, Converter={StaticResource BoolVisibilityConverter}}"/>
                 <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xEC54;" FontSize="12" Margin="4,0,0,0"
                           Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
-                          Visibility="{x:Bind ShowMuted, Converter={StaticResource BoolVisibilityConverter}}"/>
+                          Visibility="{x:Bind IsMuted, Converter={StaticResource BoolVisibilityConverter}}"/>
                 <FontIcon FontFamily="{ThemeResource SymbolThemeFontFamily}" Glyph="&#xE74F;" FontSize="12" Margin="4,0,0,0"
                           Foreground="{ThemeResource SystemControlDescriptionTextForegroundBrush}"
                           Visibility="{x:Bind IsDeafened, Converter={StaticResource BoolVisibilityConverter}}"/>
