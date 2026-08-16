@@ -122,8 +122,12 @@ jobs:
           # Turning .NET Native off also removes the RuntimeIdentifier it was supplying
           # implicitly, and the project declares no RuntimeIdentifiers of its own, so
           # packaging asks for win10-arm64 by name. It has to be set for restore too.
+          # Restores as win10-arm64, not win-arm64 like the other two. Off the .NET Native
+          # path the build resolves win10-arm64, and restoring a different RID left
+          # Microsoft.NETCore.UniversalWindowsPlatform's CoreRuntime SDK unresolved, which
+          # surfaced as WireUpCoreRuntime missing CoreRuntimeSDKLocation (MSB4044).
           - arch: ARM64
-            rid: win-arm64
+            rid: win10-arm64
             extra: '/p:UseDotNetNativeToolchain=false /p:RuntimeIdentifiers=win10-arm64'
             rids: win10-arm64
 
